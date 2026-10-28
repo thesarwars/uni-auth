@@ -92,7 +92,10 @@ async function signIn(get, { pkce, audience = 'gsn-api' }) {
     }
     if (next.startsWith(CONSENT_UI)) {
       const challenge = new URL(next).searchParams.get('consent_challenge');
-      const consent = await admin('GET', `/admin/oauth2/auth/requests/consent?consent_challenge=${challenge}`);
+      const consent = await admin(
+        'GET',
+        `/admin/oauth2/auth/requests/consent?consent_challenge=${challenge}`,
+      );
       loginSessionId = consent.login_session_id;
       const accepted = await admin(
         'PUT',
@@ -125,9 +128,13 @@ async function token(form) {
 
 const verifyJwt = (jwt) =>
   JSON.parse(
-    execFileSync('node', [new URL('./verify-jwt.mjs', import.meta.url).pathname, jwt, `${PUB}/.well-known/jwks.json`], {
-      encoding: 'utf8',
-    }),
+    execFileSync(
+      'node',
+      [new URL('./verify-jwt.mjs', import.meta.url).pathname, jwt, `${PUB}/.well-known/jwks.json`],
+      {
+        encoding: 'utf8',
+      },
+    ),
   );
 
 // --- A public client without PKCE is refused when the response is built ---------------------
@@ -146,40 +153,87 @@ const get = browser();
 const verifier = b64url(randomBytes(32));
 const first = await signIn(get, { pkce: verifier });
 const code = first.callback.searchParams.get('code');
-check('first sign-in shows the login screen (no provider session yet)', first.login && !first.login.skip);
+check(
+  'first sign-in shows the login screen (no provider session yet)',
+  first.login && !first.login.skip,
+);
 check('the login screen is told which client is asking', first.login?.client?.client_id === CLIENT);
-check('a PKCE sign-in returns a code to the registered callback', Boolean(code), first.callback.toString());
+check(
+  'a PKCE sign-in returns a code to the registered callback',
+  Boolean(code),
+  first.callback.toString(),
+);
 
-const wrong = await token({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: b64url(randomBytes(32)) });
+const wrong = await token({
+  grant_type: 'authorization_code',
+  code,
+  redirect_uri: REDIRECT,
+  code_verifier: b64url(randomBytes(32)),
+});
 check('a wrong PKCE verifier is refused', wrong.status === 400, JSON.stringify(wrong.body));
 
 // The failed exchange above invalidates the code in fosite, so sign in again for a clean one.
 const second = await signIn(get, { pkce: verifier });
-check('second sign-in skips the login screen (single sign-on)', second.login?.skip === true && second.login?.subject === SUBJECT);
+check(
+  'second sign-in skips the login screen (single sign-on)',
+  second.login?.skip === true && second.login?.subject === SUBJECT,
+);
 const code2 = second.callback.searchParams.get('code');
-const t = await token({ grant_type: 'authorization_code', code: code2, redirect_uri: REDIRECT, code_verifier: verifier });
-check('the code exchanges for access, ID and refresh tokens', t.status === 200 && t.body.access_token && t.body.id_token && t.body.refresh_token, JSON.stringify(t.body));
+const t = await token({
+  grant_type: 'authorization_code',
+  code: code2,
+  redirect_uri: REDIRECT,
+  code_verifier: verifier,
+});
+check(
+  'the code exchanges for access, ID and refresh tokens',
+  t.status === 200 && t.body.access_token && t.body.id_token && t.body.refresh_token,
+  JSON.stringify(t.body),
+);
 
 if (t.status === 200) {
   const at = verifyJwt(t.body.access_token);
   const c = at.claims;
   check('access token verifies against the JWKS (ES256)', at.header.alg === 'ES256');
-  check('access token aud is the API, not the client', Array.isArray(c.aud) && c.aud.includes('gsn-api') && !c.aud.includes(CLIENT), JSON.stringify(c.aud));
+  check(
+    'access token aud is the API, not the client',
+    Array.isArray(c.aud) && c.aud.includes('gsn-api') && !c.aud.includes(CLIENT),
+    JSON.stringify(c.aud),
+  );
   check('access token client_id names the client', c.client_id === CLIENT);
   check('access token sub is the subject the login app accepted', c.sub === SUBJECT);
-  check('sid is a top-level claim and equals the provider session', c.sid && c.sid === second.loginSessionId, JSON.stringify(c));
+  check(
+    'sid is a top-level claim and equals the provider session',
+    c.sid && c.sid === second.loginSessionId,
+    JSON.stringify(c),
+  );
   // 900 s, give or take: Hydra counts expiry from when the sign-in request started, and the
   // whole-second rounding of exp and iat can add one.
-  check('access token lives 900 s', Math.abs(c.exp - c.iat - 900) <= 10 && c.exp - c.iat <= 901, `exp-iat=${c.exp - c.iat}`);
+  check(
+    'access token lives 900 s',
+    Math.abs(c.exp - c.iat - 900) <= 10 && c.exp - c.iat <= 901,
+    `exp-iat=${c.exp - c.iat}`,
+  );
   const id = verifyJwt(t.body.id_token).claims;
-  check('ID token is addressed to the client and names the session', id.aud.includes(CLIENT) && id.sid === c.sid);
+  check(
+    'ID token is addressed to the client and names the session',
+    id.aud.includes(CLIENT) && id.sid === c.sid,
+  );
 
   const r1 = await token({ grant_type: 'refresh_token', refresh_token: t.body.refresh_token });
-  check('a refresh token rotates', r1.status === 200 && r1.body.refresh_token && r1.body.refresh_token !== t.body.refresh_token, `${r1.status} ${JSON.stringify(r1.body)}`);
+  check(
+    'a refresh token rotates',
+    r1.status === 200 && r1.body.refresh_token && r1.body.refresh_token !== t.body.refresh_token,
+    `${r1.status} ${JSON.stringify(r1.body)}`,
+  );
   const reuse = await token({ grant_type: 'refresh_token', refresh_token: t.body.refresh_token });
   check('replaying the rotated refresh token is refused', r1.status === 200 && reuse.status >= 400);
   const after = await token({ grant_type: 'refresh_token', refresh_token: r1.body.refresh_token });
-  check('reuse revokes the whole chain: the newest refresh token dies too', r1.status === 200 && after.status >= 400, JSON.stringify(after.body));
+  check(
+    'reuse revokes the whole chain: the newest refresh token dies too',
+    r1.status === 200 && after.status >= 400,
+    JSON.stringify(after.body),
+  );
 }
 
 // --- Replaying a code refuses it and revokes what it already issued (RFC 6749 4.1.2) -------
@@ -187,11 +241,32 @@ if (t.status === 200) {
   const v = b64url(randomBytes(32));
   const { callback } = await signIn(get, { pkce: v });
   const c = callback.searchParams.get('code');
-  const issued = await token({ grant_type: 'authorization_code', code: c, redirect_uri: REDIRECT, code_verifier: v });
-  const replay = await token({ grant_type: 'authorization_code', code: c, redirect_uri: REDIRECT, code_verifier: v });
-  check('a replayed authorization code is refused', issued.status === 200 && replay.status === 400, JSON.stringify(replay.body));
-  const refresh = await token({ grant_type: 'refresh_token', refresh_token: issued.body.refresh_token });
-  check('the replay revokes the tokens the code already issued', refresh.status >= 400, JSON.stringify(refresh.body));
+  const issued = await token({
+    grant_type: 'authorization_code',
+    code: c,
+    redirect_uri: REDIRECT,
+    code_verifier: v,
+  });
+  const replay = await token({
+    grant_type: 'authorization_code',
+    code: c,
+    redirect_uri: REDIRECT,
+    code_verifier: v,
+  });
+  check(
+    'a replayed authorization code is refused',
+    issued.status === 200 && replay.status === 400,
+    JSON.stringify(replay.body),
+  );
+  const refresh = await token({
+    grant_type: 'refresh_token',
+    refresh_token: issued.body.refresh_token,
+  });
+  check(
+    'the replay revokes the tokens the code already issued',
+    refresh.status >= 400,
+    JSON.stringify(refresh.body),
+  );
 }
 
 console.log(`${pass} passed, ${fail} failed`);

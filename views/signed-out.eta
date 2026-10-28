@@ -1,0 +1,3 @@
+<% layout('./layout') %>
+<h1>You have signed out</h1>
+<p>You can close this window, or go back to the app you were using.</p>

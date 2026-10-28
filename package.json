@@ -1,0 +1,58 @@
+{
+  "name": "uni-auth",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "nest start --watch --no-shell",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run lint && npm test"
+  },
+  "comments": {
+    "stack": "The GSN API's stack on purpose (auth-plan.md section 12.4): Nest 11 on Fastify, Zod configuration, Vitest. The credential services move here from the API in part 4 with their tests, without a rewrite.",
+    "views": "Server-rendered pages (Eta through @fastify/view), not a single-page app: accepting a login calls Hydra's admin API, which only a server may reach, and the screens must work before any JavaScript loads (section 7.4).",
+    "no-shell": "`dev` passes --no-shell for the same reason as the API: this repository sits under a path with an & in it, and the Nest CLI's shell spawn splits the command there.",
+    "npm": "npm 11.3 crashes resolving vitest's dependency tree (TypeError: reading 'edgesOut' in buildIdealTree); 11.6.2 does not. Install with `npx npm@11.6.2 install` until the machine's npm is newer."
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/csrf": "^8.1.1",
+    "@fastify/csrf-protection": "^8.0.2",
+    "@fastify/formbody": "^9.0.1",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/view": "^12.0.1",
+    "@nestjs/common": "^11.2.8",
+    "@nestjs/core": "^11.2.8",
+    "@nestjs/platform-fastify": "^11.2.8",
+    "dotenv": "^18.0.9",
+    "eta": "^4.6.0",
+    "nestjs-zod": "^5.5.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/schematics": "^11.1.0",
+    "@nestjs/testing": "^11.2.8",
+    "@swc/core": "^1.16.20",
+    "@types/node": "^22.20.5",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^4.1.11"
+  },
+  "packageManager": "npm@11.6.2"
+}

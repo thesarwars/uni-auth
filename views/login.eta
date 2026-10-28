@@ -1,0 +1,17 @@
+<% layout('./layout') %>
+<% if (it.logoUri) { %><img class="logo" src="<%= it.logoUri %>" alt=""><% } %>
+<h1>Sign in to continue to <%= it.clientName %></h1>
+<% if (it.testSubject) { %>
+<p class="notice" role="note">Development build: there are no real sign-in methods yet. You will be signed in as the test member <strong><%= it.testSubject %></strong>.</p>
+<% } else { %>
+<p class="notice" role="note">Sign-in is not available yet.</p>
+<% } %>
+<form method="post" action="/login">
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+  <div class="actions">
+    <% if (it.testSubject) { %><button type="submit" name="action" value="continue">Continue as <%= it.testSubject %></button><% } %>
+    <button type="submit" name="action" value="cancel" class="secondary">Cancel</button>
+  </div>
+</form>
+<footer>Signing in through <%= it.providerName %></footer>

@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    // Nest uses CommonJS. ESM + decorators + DI is a known source of friction.
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "types": ["node"],
+
+    // Nest's dependency injection reads runtime type metadata emitted by these two.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    // NOT enabled: exactOptionalPropertyTypes and verbatimModuleSyntax both fight
+    // Nest's decorator metadata and optional-provider patterns.
+    "strictPropertyInitialization": false,
+
+    "outDir": "dist",
+    "baseUrl": ".",
+    "sourceMap": true,
+    "declaration": false,
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+}
