@@ -1,0 +1,11 @@
+{
+  "client_id": "uni-auth-service",
+  "client_name": "uni-auth service calls",
+  "token_endpoint_auth_method": "client_secret_basic",
+  "grant_types": ["client_credentials"],
+  "response_types": [],
+  "scope": "accounts:mint",
+  "audience": ["gsn-api-internal"],
+  "redirect_uris": [],
+  "metadata": { "first_party": true, "product": "uni-auth" }
+}

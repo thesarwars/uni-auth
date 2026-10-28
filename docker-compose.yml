@@ -1,0 +1,65 @@
+# uni-auth, local. Part 2 of docs/dev-plan/auth-plan.md section 12.2: Hydra and its own
+# database. The login application (part 3) runs on the host at :3100 and joins later.
+#
+#   scripts/dev-secrets.sh            once: writes .env with random local secrets
+#   docker compose up -d              Hydra on :4444 (public) and 127.0.0.1:4445 (admin)
+#   scripts/hydra-keys.sh             ES256 signing keys
+#   scripts/hydra-clients.sh          registers deploy/hydra/clients/*.json
+#   scripts/smoke.sh                  the part 2 checks
+
+name: uni-auth
+
+services:
+  hydra-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hydra
+      POSTGRES_PASSWORD: ${HYDRA_DB_PASSWORD:?run scripts/dev-secrets.sh}
+      POSTGRES_DB: hydra
+    volumes:
+      - hydra-db:/var/lib/postgresql/data
+    networks: [internal]
+    # No published port: only Hydra talks to its database.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hydra -d hydra']
+      interval: 2s
+      retries: 30
+
+  hydra-migrate:
+    image: oryd/hydra:v25.4.0
+    command: migrate sql up -e --yes
+    environment:
+      DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@hydra-db:5432/hydra?sslmode=disable
+    networks: [internal]
+    depends_on:
+      hydra-db: { condition: service_healthy }
+    restart: 'no'
+
+  hydra:
+    image: oryd/hydra:v25.4.0
+    # --dev permits the http:// issuer on localhost. Never in a deployment.
+    command: serve all --dev --sqa-opt-out --config /etc/hydra/hydra.yml
+    environment:
+      DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@hydra-db:5432/hydra?sslmode=disable
+      SECRETS_SYSTEM: ${HYDRA_SECRETS_SYSTEM:?run scripts/dev-secrets.sh}
+      SECRETS_COOKIE: ${HYDRA_SECRETS_COOKIE:?run scripts/dev-secrets.sh}
+    volumes:
+      - ./deploy/hydra/hydra.yml:/etc/hydra/hydra.yml:ro
+    ports:
+      - '127.0.0.1:4444:4444'
+      # Admin is loopback-only even locally: it can register clients and accept any login
+      # (AU-2). A deployment publishes it on no interface at all.
+      - '127.0.0.1:4445:4445'
+    networks: [internal]
+    depends_on:
+      hydra-migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:4444/health/ready']
+      interval: 5s
+      retries: 20
+
+volumes:
+  hydra-db:
+
+networks:
+  internal:

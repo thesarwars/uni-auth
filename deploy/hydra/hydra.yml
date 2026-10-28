@@ -1,0 +1,73 @@
+# Ory Hydra - the protocol half of uni-auth (docs/dev-plan/auth-plan.md section 4, AU-D1).
+#
+# Hydra stores no users and no credentials. When a decision is needed it redirects to the
+# uni-auth login application (urls.login / consent / logout), which authenticates and returns
+# an acceptance naming the subject.
+#
+# This file holds no secrets. secrets.system, secrets.cookie and dsn come from the environment
+# (SECRETS_SYSTEM, SECRETS_COOKIE, DSN), from the managed secret store outside local work (SEC-7).
+# The signing keys are stored in Hydra's database, encrypted under secrets.system.
+#
+# Local values. A deployment overrides the urls.* block and serve.cookies with its own file
+# (OQ-ONB-10 decides the provider hostname).
+
+serve:
+  public:
+    port: 4444
+    cors:
+      enabled: true
+      allowed_origins:
+        - http://localhost:5173   # GSN web, Vite's default dev port
+  admin:
+    # Never published beyond loopback (docker-compose.yml) and never behind an ingress in a
+    # deployment: the admin API can register clients and accept any login (AU-2).
+    port: 4445
+  cookies:
+    same_site_mode: Lax
+
+urls:
+  self:
+    issuer: http://localhost:4444
+  login: http://localhost:3100/login
+  consent: http://localhost:3100/consent
+  logout: http://localhost:3100/logout
+  error: http://localhost:3100/error
+  post_logout_redirect: http://localhost:3100/signed-out
+
+strategies:
+  # JWT access tokens: every API verifies them locally against the JWKS, with no call to
+  # Hydra on the hot path (auth-plan.md section 5, AU-G3).
+  access_token: jwt
+  scope: exact
+
+ttl:
+  access_token: 15m              # 900 s, as today
+  refresh_token: 2160h           # 90 days: a ceiling, as auth_session_lifetime enforces
+  id_token: 15m
+  auth_code: 5m
+  login_consent_request: 30m     # the sign-in screens' "this sign-in took too long" (section 7.3)
+
+oauth2:
+  pkce:
+    enforced_for_public_clients: true
+  # Claims the consent handler sets that belong at the top level of the access token, not
+  # under ext: what the API guard reads for revocation and step-up (section 9).
+  allowed_top_level_claims:
+    - sid
+    - acr
+    - amr
+    - auth_time
+  mirror_top_level_claims: false
+  expose_internal_errors: false
+
+oidc:
+  subject_identifiers:
+    supported_types:
+      - public
+  dynamic_client_registration:
+    enabled: false               # clients are registered by scripts/hydra-clients.sh only
+
+log:
+  level: info
+  format: json
+  leak_sensitive_values: false

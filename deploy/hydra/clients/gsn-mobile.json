@@ -1,0 +1,13 @@
+{
+  "client_id": "gsn-mobile",
+  "client_name": "Go Style Network",
+  "token_endpoint_auth_method": "none",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "scope": "openid offline_access email phone",
+  "audience": ["gsn-api"],
+  "redirect_uris": ["gostyles://auth/callback"],
+  "post_logout_redirect_uris": ["gostyles://auth/signed-out"],
+  "skip_consent": true,
+  "metadata": { "first_party": true, "product": "gsn" }
+}
