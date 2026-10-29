@@ -24,6 +24,10 @@ const LoginRequest = z.object({
   subject: z.string(),
   client: Client,
   requested_scope: z.array(z.string()).nullish(),
+  /** Hydra's login session id: the `sid` of every token this sign-in issues. */
+  session_id: z.string().nullish(),
+  /** The authorize URL that started the flow; following it again starts a fresh one. */
+  request_url: z.string().nullish(),
 });
 export type LoginRequest = z.infer<typeof LoginRequest>;
 
@@ -100,6 +104,14 @@ export class HydraAdmin {
     return this.put('login', challenge, 'reject', { error, error_description: description });
   }
 
+  /**
+   * Ends one provider session at Hydra: its cookie stops granting single sign-on, so the next
+   * authorize request shows the sign-in screen.
+   */
+  async revokeLoginSession(sid: string): Promise<void> {
+    await this.call('DELETE', `/admin/oauth2/auth/sessions/login?sid=${enc(sid)}`);
+  }
+
   getConsent(challenge: string): Promise<ConsentRequest> {
     return this.get('consent', challenge, ConsentRequest);
   }
@@ -174,7 +186,11 @@ export class HydraAdmin {
     return Redirect.parse(await res.json()).redirect_to;
   }
 
-  private async call(method: 'GET' | 'PUT', path: string, body?: unknown): Promise<Response> {
+  private async call(
+    method: 'GET' | 'PUT' | 'DELETE',
+    path: string,
+    body?: unknown,
+  ): Promise<Response> {
     const res = await fetch(`${env.HYDRA_ADMIN_URL}${path}`, {
       method,
       headers: body === undefined ? {} : { 'content-type': 'application/json' },

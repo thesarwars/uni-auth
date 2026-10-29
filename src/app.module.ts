@@ -6,12 +6,20 @@ import { ConsentController } from './flows/consent.controller';
 import { LoginController } from './flows/login.controller';
 import { LogoutController } from './flows/logout.controller';
 import { SystemController } from './flows/system.controller';
+import { PasswordService } from './credentials/password.service';
+import { Database } from './db/database.service';
 import { HydraAdmin } from './hydra/hydra-admin.service';
+import { IdentityRepository } from './identity/identity.repository';
+import { Throttle } from './throttle/throttle.service';
 
 @Module({
   controllers: [LoginController, ConsentController, LogoutController, SystemController],
   providers: [
     HydraAdmin,
+    Database,
+    IdentityRepository,
+    PasswordService,
+    Throttle,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

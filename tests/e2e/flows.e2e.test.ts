@@ -1,6 +1,5 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from '../../src/app.factory';
 import {
   APP,
   HYDRA,
@@ -14,6 +13,8 @@ import {
   pkce,
   type Browser,
 } from '../support/browser';
+import { startApp } from '../support/app';
+import { closeMembers, createMember, type Member } from '../support/members';
 
 /**
  * Part 3's go/no-go (auth-plan.md section 12.2): a client completes redirect -> code -> token
@@ -22,19 +23,12 @@ import {
  */
 
 let app: NestFastifyApplication;
-const SUBJECT = process.env.DEV_TEST_SUBJECT!;
+let member: Member;
 const THIRD_PARTY = 'test-third-party';
 
 beforeAll(async () => {
-  const ready = await fetch(`${HYDRA_ADMIN}/health/ready`).catch(() => null);
-  if (!ready?.ok) {
-    throw new Error(
-      'Hydra is not running. docker compose up -d --wait && scripts/hydra-keys.sh && scripts/hydra-clients.sh',
-    );
-  }
-  app = await createApp(['error']);
-  // Hydra's urls.login, consent and logout point at localhost:3100 (deploy/hydra/hydra.yml).
-  await app.listen({ port: 3100, host: 'localhost' });
+  app = await startApp();
+  member = await createMember();
 
   await fetch(`${HYDRA_ADMIN}/admin/clients/${THIRD_PARTY}`, { method: 'DELETE' });
   const created = await fetch(`${HYDRA_ADMIN}/admin/clients`, {
@@ -58,6 +52,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await fetch(`${HYDRA_ADMIN}/admin/clients/${THIRD_PARTY}`, { method: 'DELETE' });
   await app?.close();
+  await closeMembers();
 });
 
 /** From a client's authorize URL to the login page this application renders. */
@@ -66,14 +61,30 @@ async function toLoginPage(b: Browser, url: string) {
   return { at, hop };
 }
 
+/** Identifier, then password, on a login page already open; returns where the client lands. */
+async function complete(b: Browser, html: string, who: Member = member): Promise<URL> {
+  const identified = await b.post(`${APP}/login`, {
+    ...formFields(html),
+    action: 'identify',
+    identifier: who.email,
+  });
+  expect(identified.status).toBe(200);
+  expect(identified.html).toContain('Enter your password');
+  const posted = await b.post(`${APP}/login`, {
+    ...formFields(identified.html),
+    action: 'password',
+    password: who.password,
+  });
+  expect(posted.status).toBe(303);
+  const { url } = await b.follow(posted.location!);
+  return new URL(url);
+}
+
 /** Signs in through the login page and returns the URL the client gets back. */
 async function signIn(b: Browser, challenge: string): Promise<URL> {
   const { at, hop } = await toLoginPage(b, authorizeUrl(challenge));
   expect(at.startsWith(`${APP}/login?`)).toBe(true);
-  const posted = await b.post(`${APP}/login`, { ...formFields(hop.html), action: 'continue' });
-  expect(posted.status).toBe(303);
-  const { url } = await b.follow(posted.location!);
-  return new URL(url);
+  return complete(b, hop.html);
 }
 
 describe('sign-in round trip', () => {
@@ -83,7 +94,7 @@ describe('sign-in round trip', () => {
     expect(at).toMatch(/^http:\/\/localhost:3100\/login\?login_challenge=/);
     expect(hop.status).toBe(200);
     expect(hop.html).toContain('Sign in to continue to Go Style Network');
-    expect(hop.html).toContain(`Continue as ${SUBJECT}`);
+    expect(hop.html).toContain('autocomplete="username"');
     expect(formFields(hop.html)._csrf).toBeTruthy();
     expect(hop.headers.get('cache-control')).toBe('no-store');
     expect(hop.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
@@ -103,13 +114,13 @@ describe('sign-in round trip', () => {
     expect(t.status).toBe(200);
     const at = claims(t.body.access_token);
     const id = claims(t.body.id_token);
-    expect(at.sub).toBe(SUBJECT);
+    expect(at.sub).toBe(member.identityId);
     expect(at.aud).toContain('gsn-api');
     expect(at.client_id).toBe('gsn-web');
     expect(at.sid).toBeTruthy();
     expect(id.sid).toBe(at.sid);
-    expect(at.amr).toEqual(['test']);
-    expect(at.acr).toBe('test');
+    expect(at.amr).toEqual(['pwd']);
+    expect(at.acr).toBe('aal1');
     expect(typeof at.auth_time).toBe('number');
     expect(t.body.refresh_token).toBeTruthy();
   });
@@ -164,9 +175,7 @@ describe('sign-in round trip', () => {
       authorizeUrl(pkce().challenge, { client_id: THIRD_PARTY, scope: 'openid' }),
     );
     expect(hop.html).toContain('Sign in to continue to Someone Else');
-    const posted = await b.post(`${APP}/login`, { ...formFields(hop.html), action: 'continue' });
-    const { url } = await b.follow(posted.location!);
-    const back = new URL(url);
+    const back = await complete(b, hop.html);
     expect(back.searchParams.get('error')).toBe('access_denied');
     expect(back.searchParams.has('code')).toBe(false);
   });
@@ -178,7 +187,11 @@ describe('refusals become pages, never redirects', () => {
     const { hop } = await toLoginPage(b, authorizeUrl(pkce().challenge));
     const fields = formFields(hop.html);
     delete fields._csrf;
-    const posted = await b.post(`${APP}/login`, { ...fields, action: 'continue' });
+    const posted = await b.post(`${APP}/login`, {
+      ...fields,
+      action: 'identify',
+      identifier: member.email,
+    });
     expect(posted.status).toBe(403);
     expect(posted.location).toBeNull();
     expect(posted.html).toContain('This page has expired');
@@ -192,7 +205,8 @@ describe('refusals become pages, never redirects', () => {
     const posted = await victim.post(`${APP}/login`, {
       ...formFields(hop.html),
       _csrf: formFields(theirs.html)._csrf!,
-      action: 'continue',
+      action: 'identify',
+      identifier: member.email,
     });
     expect(posted.status).toBe(403);
   });
@@ -213,12 +227,7 @@ describe('refusals become pages, never redirects', () => {
     const attacker = browser();
     const page = await attacker.get(at);
     expect(page.status).toBe(200);
-    const posted = await attacker.post(`${APP}/login`, {
-      ...formFields(page.html),
-      action: 'continue',
-    });
-    const { url } = await attacker.follow(posted.location!);
-    const back = new URL(url);
+    const back = await complete(attacker, page.html);
     expect(back.searchParams.get('error')).toBe('request_forbidden');
     expect(back.searchParams.has('code')).toBe(false);
   });
@@ -278,7 +287,7 @@ describe('sign-out', () => {
 });
 
 describe('probes', () => {
-  it('reports ready while Hydra is', async () => {
+  it('reports ready while Hydra, the database and Redis are', async () => {
     const res = await fetch(`${APP}/ready`);
     expect(res.status).toBe(200);
   });

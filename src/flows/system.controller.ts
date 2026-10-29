@@ -1,12 +1,18 @@
 import { Controller, Get, Query, Res, ServiceUnavailableException } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { renderError } from '../common/pages';
+import { Database } from '../db/database.service';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
+import { Throttle } from '../throttle/throttle.service';
 
 /** Hydra's urls.error, and the probes. */
 @Controller()
 export class SystemController {
-  constructor(private readonly hydra: HydraAdmin) {}
+  constructor(
+    private readonly hydra: HydraAdmin,
+    private readonly db: Database,
+    private readonly throttle: Throttle,
+  ) {}
 
   /**
    * Hydra sends the browser here when it refuses a request outright - an unknown client, an
@@ -33,10 +39,22 @@ export class SystemController {
     return { status: 'ok' };
   }
 
-  /** Readiness touches Hydra: without it, no screen here can do anything. */
+  /**
+   * Readiness touches everything a sign-in needs: Hydra, the identity database, and Redis - the
+   * throttle fails closed, so without it no password can be checked.
+   */
   @Get('ready')
   async ready(): Promise<{ status: string }> {
-    if (!(await this.hydra.ready())) throw new ServiceUnavailableException('hydra not ready');
+    const [hydra, db, throttle] = await Promise.all([
+      this.hydra.ready(),
+      this.db.ready(),
+      this.throttle.ready(),
+    ]);
+    if (!hydra || !db || !throttle) {
+      throw new ServiceUnavailableException(
+        `not ready: ${[!hydra && 'hydra', !db && 'database', !throttle && 'redis'].filter(Boolean).join(', ')}`,
+      );
+    }
     return { status: 'ready' };
   }
 }

@@ -15,7 +15,8 @@ add HYDRA_SECRETS_COOKIE "$(rand)"
 add UNI_AUTH_SERVICE_SECRET "$(rand)"
 add COOKIE_SECRET "$(rand)"
 add HYDRA_ADMIN_URL "http://127.0.0.1:4445"
-add DEV_TEST_SUBJECT "dev-member"
+add HYDRA_PUBLIC_URL "http://localhost:4444"
+add REDIS_URL "redis://127.0.0.1:6380"
 add IDENTITY_DB_PASSWORD "$(rand)"
 # The owner applies migrations; the application connects as uni_auth_api (scripts/db-dev-roles.mjs).
 pw=$(grep '^IDENTITY_DB_PASSWORD=' .env | cut -d= -f2)

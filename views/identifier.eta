@@ -1,0 +1,16 @@
+<% layout('./layout') %>
+<%~ include('./_header', it) %>
+<h1>Sign in to continue to <%= it.clientName %></h1>
+<form method="post" action="/login" novalidate>
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+  <label for="identifier">Email or phone</label>
+  <input id="identifier" name="identifier" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus value="<%= it.typed %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="identifier-error"<% } %>>
+  <% if (it.error) { %><p id="identifier-error" class="error" role="alert"><%= it.error %></p><% } %>
+  <p class="hint">A phone number needs its country code, like +44 7700 900123.</p>
+  <div class="actions">
+    <button type="submit" name="action" value="identify">Continue</button>
+    <button type="submit" name="action" value="cancel" class="secondary" formnovalidate>Cancel</button>
+  </div>
+</form>
+<footer>Signing in through <%= it.providerName %></footer>

@@ -1,0 +1,6 @@
+<% layout('./layout') %>
+<%~ include('./_header', it) %>
+<h1>Too many attempts</h1>
+<p role="alert">Sign-in with a password is paused for this account. You can try again in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
+<p class="links"><a href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Use a different account</a></p>
+<footer>Signing in through <%= it.providerName %></footer>

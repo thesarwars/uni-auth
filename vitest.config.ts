@@ -11,8 +11,11 @@ const defaults: Record<string, string> = {
   LOG_LEVEL: 'error',
   HYDRA_ADMIN_URL: 'http://127.0.0.1:4445',
   COOKIE_SECRET: 'test-only-cookie-secret-0000000000000000',
-  DEV_TEST_SUBJECT: 'test-member',
   PROVIDER_NAME: 'uni-auth',
+  HYDRA_PUBLIC_URL: 'http://localhost:4444',
+  REDIS_URL: 'redis://127.0.0.1:6380',
+  // A fresh namespace per run, so one run's failed attempts never lock out the next.
+  THROTTLE_KEY_PREFIX: `uni-auth-test:${Date.now()}:`,
   // The identity database as the application's own role (scripts/db-dev-roles.mjs).
   DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };

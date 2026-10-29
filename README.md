@@ -6,11 +6,11 @@ reasons behind it, are in the GSN docs: `docs/dev-plan/auth-plan.md`.
 
 uni-auth is two halves:
 
-| Half                      | What it is                                                                                                                                                | State                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                                     |
-| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 3 skeleton — signs in a fixed test member; real credentials arrive in part 4 |
-| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                          |
+| Half                      | What it is                                                                                                                                                | State                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                                      |
+| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 4 — password sign-in with its throttle; codes, recovery and Google/Apple next |
+| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                           |
 
 The name is product-neutral on purpose. Products, brands and redirect URIs are client
 registrations; nothing in the code names a product.
@@ -22,17 +22,17 @@ resolving the test runner's dependencies.
 
 ```bash
 scripts/dev-secrets.sh                # writes .env: random secrets and local settings (never overwrites a key)
-docker compose up -d --wait           # Hydra public on :4444, admin on 127.0.0.1:4445; identity DB on 127.0.0.1:5434
+docker compose up -d --wait           # Hydra public on :4444, admin on 127.0.0.1:4445; identity DB on 127.0.0.1:5434; Redis on 127.0.0.1:6380
 scripts/hydra-keys.sh                 # ES256 signing keys
 scripts/hydra-clients.sh              # registers deploy/hydra/clients/*.json
 npx npm@11.6.2 install
 npm run db:migrate                    # applies db/migrations/*.sql as the owner role
 npm run db:dev-roles                  # local login role uni_auth_api (refused in production)
+npm run dev:member -- dev@example.com 'Dev-Password-1'   # someone to sign in as, until sign-up (part 5)
 npm run dev                           # the login application on :3100
 ```
 
-Then sign in as a client would - open this in a browser and press **Continue as dev-member**;
-it ends on `localhost:5173/callback?code=...` (nothing listens there yet, which is fine). The
+Then sign in as a client would - open this in a browser and sign in as that member; it ends on `localhost:5173/callback?code=...` (nothing listens there yet, which is fine). The
 challenge is RFC 7636's example, so the code exchanges with the verifier
 `dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk`:
 
@@ -55,6 +55,10 @@ The e2e suite listens on :3100 itself, so stop `npm run dev` first.
 src/flows/                    login, consent, logout - Hydra's challenges, answered
 src/hydra/                    the admin API client
 src/common/                   pages, the CSRF guard, the error filter
+src/identity/                 identifier parsing and the identity tables' statements
+src/credentials/              password hashing and the policy checklist
+src/throttle/                 the per-identifier and per-address password throttle (Redis)
+src/db/                       the pool and transactions
 views/                        server-rendered templates (Eta), one per screen
 tests/e2e/                    the sign-in, sign-out and refusal flows against the real Hydra
 tests/db/                     the identity schema's rules, run as the application role
@@ -97,8 +101,15 @@ docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
   revoking a credential, suspending or closing an identity revokes its sessions in the same
   transaction. Erasure needs a closed identity and scrubs identifiers, secrets and journal
   detail, keeping the rows' shape.
-- **`DEV_TEST_SUBJECT` is the only credential until part 4**, and the process refuses to start
-  with it in production.
+- **A sign-in is recorded before a client hears of it.** The `auth_session` row, named by Hydra's
+  login session id - the token's `sid` - is written before Hydra is told who signed in. Single
+  sign-on asks the identity database too: a revoked session or a suspended identity ends
+  Hydra's session and starts the flow again, with a screen.
+- **The password throttle fails closed.** Five wrong passwords for one identifier pause it for
+  fifteen minutes, and an address is refused after 100 failures in that window; both counted in
+  Redis under hashed keys. If Redis is unreachable no password is checked, and `/ready` says so.
+  `X-Forwarded-For` is believed only through `TRUST_PROXY_HOPS` proxies, so the address cannot
+  be forged by the client.
 - **Secrets come from the secret store outside local work.** `HYDRA_SECRETS_SYSTEM` encrypts
   the signing keys at rest: lose it and the keys are unreadable.
 

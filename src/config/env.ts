@@ -22,6 +22,26 @@ const Env = z.object({
    */
   HYDRA_ADMIN_URL: z.string().url(),
 
+  /**
+   * Hydra's public origin, the issuer. A login request's request_url - the authorize URL that
+   * started it - is followed only when it is on this origin.
+   */
+  HYDRA_PUBLIC_URL: z.string().url(),
+
+  /** The identity database, as a login role in uni_auth_app (never the owner). */
+  DATABASE_URL: z.string().url(),
+
+  /** The sign-in throttle's counters (auth-plan.md section 9). */
+  REDIS_URL: z.string().url(),
+  /** Namespaces the throttle's keys, so a test run starts from zero. */
+  THROTTLE_KEY_PREFIX: z.string().default('uni-auth:throttle:'),
+
+  /**
+   * How many proxies in front of this server to trust for the client address. 0 trusts none:
+   * X-Forwarded-For is then ignored, so nobody can dodge the per-address throttle by sending one.
+   */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+
   /** Signs the CSRF cookie. 32+ characters. */
   COOKIE_SECRET: z.string().min(32),
 
@@ -38,12 +58,6 @@ const Env = z.object({
     .positive()
     .max(90 * 24 * 3600)
     .default(90 * 24 * 3600),
-
-  /**
-   * TEMPORARY, until part 4 brings real credentials: the login screen offers "Continue as"
-   * this subject, and anyone who reaches it signs in as them. Refused in production.
-   */
-  DEV_TEST_SUBJECT: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
 });
 
 const parsed = Env.safeParse(process.env);
@@ -53,11 +67,6 @@ if (!parsed.success) {
   process.stderr.write(
     `Invalid environment:\n${issues}\n\nLocally the values come from .env: scripts/dev-secrets.sh\n`,
   );
-  process.exit(1);
-}
-
-if (parsed.data.DEV_TEST_SUBJECT && parsed.data.NODE_ENV === 'production') {
-  process.stderr.write('DEV_TEST_SUBJECT is set. It signs anyone in; never in production.\n');
   process.exit(1);
 }
 

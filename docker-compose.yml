@@ -30,6 +30,17 @@ services:
       interval: 2s
       retries: 30
 
+  # The sign-in throttle (auth-plan.md section 9, AU-G6). Counters only, nothing durable.
+  redis:
+    image: redis:7.4
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports:
+      - '127.0.0.1:6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      retries: 30
+
   hydra-db:
     image: postgres:16
     environment:
