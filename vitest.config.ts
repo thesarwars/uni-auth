@@ -13,6 +13,8 @@ const defaults: Record<string, string> = {
   COOKIE_SECRET: 'test-only-cookie-secret-0000000000000000',
   DEV_TEST_SUBJECT: 'test-member',
   PROVIDER_NAME: 'uni-auth',
+  // The identity database as the application's own role (scripts/db-dev-roles.mjs).
+  DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };
 
 export default defineConfig({

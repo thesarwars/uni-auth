@@ -24,7 +24,7 @@ jq -e '[.keys[] | select(has("d"))] | length == 0' <<<"$jwks" >/dev/null; check 
 
 # 3. A client-credentials token: signed ES256 by a published key, addressed to its audience
 tok=$(curl -fsS -u "uni-auth-service:$UNI_AUTH_SERVICE_SECRET" -d grant_type=client_credentials \
-      -d scope=accounts:mint -d audience=gsn-api-internal "$PUB/oauth2/token" | jq -r .access_token)
+      -d scope=identity:lifecycle -d audience=gsn-api-internal "$PUB/oauth2/token" | jq -r .access_token)
 out=$(node scripts/verify-jwt.mjs "$tok" "$PUB/.well-known/jwks.json" 2>&1); check "access token verifies against the JWKS (ES256)" $? "$out"
 [[ $(jq -r '.claims.aud | index("gsn-api-internal") != null' <<<"$out" 2>/dev/null) == true ]]; check "aud is the requested API" $?
 [[ $(jq -r '.claims.client_id' <<<"$out" 2>/dev/null) == "uni-auth-service" ]]; check "client_id names the caller" $?

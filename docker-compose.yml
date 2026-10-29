@@ -1,15 +1,35 @@
-# uni-auth, local. Part 2 of docs/dev-plan/auth-plan.md section 12.2: Hydra and its own
-# database. The login application (part 3) runs on the host at :3100 and joins later.
+# uni-auth, local: Hydra and its database, and uni-auth's own identity database. The login
+# application runs on the host at :3100.
 #
 #   scripts/dev-secrets.sh            once: writes .env with random local secrets
-#   docker compose up -d              Hydra on :4444 (public) and 127.0.0.1:4445 (admin)
+#   docker compose up -d --wait       Hydra on :4444 (public) and 127.0.0.1:4445 (admin),
+#                                     the identity database on 127.0.0.1:5434
+#   node scripts/db-migrate.mjs       applies db/migrations as the owner
+#   node scripts/db-dev-roles.mjs     the login role the application connects as
 #   scripts/hydra-keys.sh             ES256 signing keys
 #   scripts/hydra-clients.sh          registers deploy/hydra/clients/*.json
-#   scripts/smoke.sh                  the part 2 checks
 
 name: uni-auth
 
 services:
+  # uni-auth's own user store: identities, identifiers, credentials, sessions and the
+  # authentication journal (db/migrations). Separate from Hydra's database, which holds only
+  # the protocol's state. Published on loopback for the login application on the host.
+  identity-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: uni_auth_owner
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?run scripts/dev-secrets.sh}
+      POSTGRES_DB: identity
+    ports:
+      - '127.0.0.1:5434:5432'
+    volumes:
+      - identity-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U uni_auth_owner -d identity']
+      interval: 2s
+      retries: 30
+
   hydra-db:
     image: postgres:16
     environment:
@@ -59,6 +79,7 @@ services:
       retries: 20
 
 volumes:
+  identity-db:
   hydra-db:
 
 networks:

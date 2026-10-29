@@ -10,6 +10,7 @@ uni-auth is two halves:
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                                     |
 | **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 3 skeleton — signs in a fixed test member; real credentials arrive in part 4 |
+| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                          |
 
 The name is product-neutral on purpose. Products, brands and redirect URIs are client
 registrations; nothing in the code names a product.
@@ -21,10 +22,12 @@ resolving the test runner's dependencies.
 
 ```bash
 scripts/dev-secrets.sh                # writes .env: random secrets and local settings (never overwrites a key)
-docker compose up -d --wait           # Hydra public on :4444, admin on 127.0.0.1:4445
+docker compose up -d --wait           # Hydra public on :4444, admin on 127.0.0.1:4445; identity DB on 127.0.0.1:5434
 scripts/hydra-keys.sh                 # ES256 signing keys
 scripts/hydra-clients.sh              # registers deploy/hydra/clients/*.json
 npx npm@11.6.2 install
+npm run db:migrate                    # applies db/migrations/*.sql as the owner role
+npm run db:dev-roles                  # local login role uni_auth_api (refused in production)
 npm run dev                           # the login application on :3100
 ```
 
@@ -40,7 +43,7 @@ http://localhost:4444/oauth2/auth?client_id=gsn-web&response_type=code&redirect_
 Checks:
 
 ```bash
-npm run verify                        # typecheck, lint, and the e2e suite against the real Hydra
+npm run verify                        # typecheck, lint, the schema suite and the e2e suite against the real Hydra
 scripts/smoke.sh                      # Hydra on its own: keys, audiences, admin boundary, round trip
 ```
 
@@ -54,10 +57,12 @@ src/hydra/                    the admin API client
 src/common/                   pages, the CSRF guard, the error filter
 views/                        server-rendered templates (Eta), one per screen
 tests/e2e/                    the sign-in, sign-out and refusal flows against the real Hydra
+tests/db/                     the identity schema's rules, run as the application role
+db/migrations/                the identity database, hand-written SQL, applied in order
 deploy/hydra/hydra.yml        Hydra's configuration; no secrets
 deploy/hydra/clients/*.json   the client registry of record
 scripts/                      secrets, keys, client registration, Hydra checks
-docker-compose.yml            Hydra and its own PostgreSQL
+docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
 ```
 
 ## Rules that hold everywhere
@@ -84,6 +89,14 @@ docker-compose.yml            Hydra and its own PostgreSQL
 - **A login challenge is bound to the browser that started it.** Hydra v25 challenges are
   stateless, so one read back after use still renders; Hydra's CSRF cookie is what refuses it in
   any other browser.
+- **The identity database is uni-auth's alone.** No product reads it; a product learns who
+  signed in from the token's `sub` and keeps its own account keyed by it. The application
+  connects as a login role in `uni_auth_app`, which cannot delete identities, edit the journal,
+  change the password policy or create objects; migrations run as the owner.
+- **Credentials are never edited.** A new password is a new row and the old one is revoked;
+  revoking a credential, suspending or closing an identity revokes its sessions in the same
+  transaction. Erasure needs a closed identity and scrubs identifiers, secrets and journal
+  detail, keeping the rows' shape.
 - **`DEV_TEST_SUBJECT` is the only credential until part 4**, and the process refuses to start
   with it in production.
 - **Secrets come from the secret store outside local work.** `HYDRA_SECRETS_SYSTEM` encrypts
@@ -91,10 +104,10 @@ docker-compose.yml            Hydra and its own PostgreSQL
 
 ## Local client registrations
 
-| Client             | Kind                             | Redirect                                                                                  | Audience                                  |
-| ------------------ | -------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `gsn-web`          | public, PKCE                     | `http://localhost:5173/callback` (Vite's default port; the web app is not scaffolded yet) | `gsn-api`                                 |
-| `gsn-mobile`       | public, PKCE                     | `gostyles://auth/callback` (the scheme in the Expo app's `app.json`)                      | `gsn-api`                                 |
-| `uni-auth-service` | confidential, client credentials | —                                                                                         | `gsn-api-internal`, scope `accounts:mint` |
+| Client             | Kind                             | Redirect                                                                                  | Audience                                       |
+| ------------------ | -------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `gsn-web`          | public, PKCE                     | `http://localhost:5173/callback` (Vite's default port; the web app is not scaffolded yet) | `gsn-api`                                      |
+| `gsn-mobile`       | public, PKCE                     | `gostyles://auth/callback` (the scheme in the Expo app's `app.json`)                      | `gsn-api`                                      |
+| `uni-auth-service` | confidential, client credentials | —                                                                                         | `gsn-api-internal`, scope `identity:lifecycle` |
 
 Back-channel logout URIs are added in part 7.

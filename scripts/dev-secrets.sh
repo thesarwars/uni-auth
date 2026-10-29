@@ -16,3 +16,8 @@ add UNI_AUTH_SERVICE_SECRET "$(rand)"
 add COOKIE_SECRET "$(rand)"
 add HYDRA_ADMIN_URL "http://127.0.0.1:4445"
 add DEV_TEST_SUBJECT "dev-member"
+add IDENTITY_DB_PASSWORD "$(rand)"
+# The owner applies migrations; the application connects as uni_auth_api (scripts/db-dev-roles.mjs).
+pw=$(grep '^IDENTITY_DB_PASSWORD=' .env | cut -d= -f2)
+add DATABASE_OWNER_URL "postgres://uni_auth_owner:$pw@127.0.0.1:5434/identity"
+add DATABASE_URL "postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity"

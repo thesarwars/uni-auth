@@ -4,7 +4,7 @@
   "token_endpoint_auth_method": "client_secret_basic",
   "grant_types": ["client_credentials"],
   "response_types": [],
-  "scope": "accounts:mint",
+  "scope": "identity:lifecycle",
   "audience": ["gsn-api-internal"],
   "redirect_uris": [],
   "metadata": { "first_party": true, "product": "uni-auth" }

@@ -15,7 +15,9 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "npm run typecheck && npm run lint && npm test"
+    "verify": "npm run typecheck && npm run lint && npm test",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:dev-roles": "node scripts/db-dev-roles.mjs"
   },
   "comments": {
     "stack": "The GSN API's stack on purpose (auth-plan.md section 12.4): Nest 11 on Fastify, Zod configuration, Vitest. The credential services move here from the API in part 4 with their tests, without a rewrite.",
@@ -36,6 +38,7 @@
     "dotenv": "^18.0.9",
     "eta": "^4.6.0",
     "nestjs-zod": "^5.5.0",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^3.25.76"
@@ -47,6 +50,7 @@
     "@nestjs/testing": "^11.2.8",
     "@swc/core": "^1.16.20",
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "eslint": "^9.39.5",
     "prettier": "^3.9.10",
     "typescript": "^5.9.3",
