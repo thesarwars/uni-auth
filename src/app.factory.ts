@@ -18,7 +18,7 @@ export async function createApp(
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
-      trustProxy: env.TRUST_PROXY_HOPS || false,
+      trustProxy: env.TRUSTED_PROXIES.length ? env.TRUSTED_PROXIES : false,
       genReqId: () => crypto.randomUUID(),
     }),
     { logger },

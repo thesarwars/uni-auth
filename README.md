@@ -6,11 +6,11 @@ reasons behind it, are in the GSN docs: `docs/dev-plan/auth-plan.md`.
 
 uni-auth is two halves:
 
-| Half                      | What it is                                                                                                                                                | State                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                                      |
-| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 4 — password sign-in with its throttle; codes, recovery and Google/Apple next |
-| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                           |
+| Half                      | What it is                                                                                                                                                | State                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                           |
+| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 4 — password and code sign-in, recovery by code; Google/Apple next |
+| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                |
 
 The name is product-neutral on purpose. Products, brands and redirect URIs are client
 registrations; nothing in the code names a product.
@@ -56,7 +56,8 @@ src/flows/                    login, consent, logout - Hydra's challenges, answe
 src/hydra/                    the admin API client
 src/common/                   pages, the CSRF guard, the error filter
 src/identity/                 identifier parsing and the identity tables' statements
-src/credentials/              password hashing and the policy checklist
+src/credentials/              password hashing, the policy checklist, one-time codes
+src/delivery/                 email (SMTP) and WhatsApp (Meta Cloud API) senders; the dev outbox
 src/throttle/                 the per-identifier and per-address password throttle (Redis)
 src/db/                       the pool and transactions
 views/                        server-rendered templates (Eta), one per screen
@@ -105,11 +106,19 @@ docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
   login session id - the token's `sid` - is written before Hydra is told who signed in. Single
   sign-on asks the identity database too: a revoked session or a suspended identity ends
   Hydra's session and starts the flow again, with a screen.
+- **The caps on codes are the database's.** Five wrong codes lock the address for thirty minutes,
+  five codes go to one address an hour, a code lives ten minutes and works once, and it works
+  only in the sign-in that asked for it. The screens render what the triggers refused and keep
+  no counter. A code is delivered after its transaction commits, and recovery by code ends
+  signed in, with every other session revoked and the password lockout lifted.
+- **A code is never logged in production.** `EMAIL_DELIVERY=log` and `WHATSAPP_DELIVERY=log` write
+  codes to the log for local work and the tests, and the process refuses to start with either
+  in production.
 - **The password throttle fails closed.** Five wrong passwords for one identifier pause it for
   fifteen minutes, and an address is refused after 100 failures in that window; both counted in
   Redis under hashed keys. If Redis is unreachable no password is checked, and `/ready` says so.
-  `X-Forwarded-For` is believed only through `TRUST_PROXY_HOPS` proxies, so the address cannot
-  be forged by the client.
+  `X-Forwarded-For` is believed only from the `TRUSTED_PROXIES` addresses, so a client cannot
+  forge its own address.
 - **Secrets come from the secret store outside local work.** `HYDRA_SECRETS_SYSTEM` encrypts
   the signing keys at rest: lose it and the keys are unreadable.
 

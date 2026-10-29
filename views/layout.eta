@@ -29,6 +29,12 @@
     .hint { font-size: .875rem; margin: 8px 0 0; }
     .links { margin-top: 16px; }
     a { color: var(--ink); }
+    form.inline { margin-top: 12px; }
+    button.link { background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; font-weight: 400; }
+    .rules { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: .9375rem; }
+    .rules .met { color: var(--ink); }
+    .rules .unmet { color: var(--danger); }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     footer { margin-top: 24px; font-size: .875rem; color: var(--muted); }
   </style>
 </head>

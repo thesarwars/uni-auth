@@ -1,0 +1,3 @@
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+  <input type="hidden" name="identifier" value="<%= it.identifier %>">

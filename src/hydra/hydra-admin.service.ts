@@ -14,7 +14,7 @@ const Client = z.object({
   client_id: z.string(),
   client_name: z.string().optional().default(''),
   logo_uri: z.string().optional().default(''),
-  metadata: z.record(z.unknown()).nullish(),
+  metadata: z.record(z.string(), z.unknown()).nullish(),
 });
 export type HydraClient = z.infer<typeof Client>;
 
@@ -41,7 +41,7 @@ const ConsentRequest = z.object({
   login_session_id: z.string().nullish(),
   acr: z.string().nullish(),
   amr: z.array(z.string()).nullish(),
-  context: z.record(z.unknown()).nullish(),
+  context: z.record(z.string(), z.unknown()).nullish(),
 });
 export type ConsentRequest = z.infer<typeof ConsentRequest>;
 
@@ -169,7 +169,7 @@ export class HydraAdmin {
       'GET',
       `/admin/oauth2/auth/requests/${flow}?${flow}_challenge=${enc(challenge)}`,
     );
-    return schema.parse(await res.json()) as z.output<S>;
+    return schema.parse(await res.json());
   }
 
   private async put(

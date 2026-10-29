@@ -1,0 +1,39 @@
+<% layout('./layout') %>
+<%~ include('./_header', it) %>
+<% if (it.locked) { %>
+<h1>Too many wrong codes</h1>
+<p role="alert">For your security, no more codes can be sent to <%= it.destination %> for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
+<% } else if (it.rateLimited) { %>
+<h1>Please wait before asking again</h1>
+<p role="alert">We've sent as many codes to <%= it.destination %> as we can for now. You can ask for another in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
+<% } else if (it.expired) { %>
+<h1><%= it.ticketExpired ? 'Your reset took too long' : 'That code has expired' %></h1>
+<p role="alert"><%= it.ticketExpired ? 'Send a new code to start again.' : 'It was used already, or too much time passed. Send a new one.' %></p>
+<form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+  <input type="hidden" name="purpose" value="<%= it.purpose %>">
+  <div class="actions">
+    <button type="submit" name="action" value="send_code">Send a new code</button>
+  </div>
+</form>
+<% } else { %>
+<h1><%= it.recovery ? 'Reset your password' : 'Enter your code' %></h1>
+<p>We sent a <%= it.code.codeLength %>-digit code to <strong><%= it.destination %></strong> by <%= it.channel %>.</p>
+<form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+  <input type="hidden" name="otp_id" value="<%= it.code.otpId %>">
+  <label for="code">Code</label>
+  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="<%= it.code.codeLength %>" required autofocus<% if (it.error) { %> aria-invalid="true" aria-describedby="code-error"<% } %>>
+  <% if (it.error) { %><p id="code-error" class="error" role="alert"><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></p><% } %>
+  <div class="actions">
+    <button type="submit" name="action" value="verify_code">Continue</button>
+  </div>
+</form>
+<form method="post" action="/login" class="inline">
+<%~ include('./_hidden', it) %>
+  <input type="hidden" name="purpose" value="<%= it.purpose %>">
+  <button type="submit" name="action" value="send_code" class="link">Send the code again</button>
+</form>
+<% } %>
+<p class="links"><a href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Not you?</a></p>
+<footer>Signing in through <%= it.providerName %></footer>

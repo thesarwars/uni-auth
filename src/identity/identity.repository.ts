@@ -145,6 +145,44 @@ export class IdentityRepository {
     await db.query('UPDATE credential SET last_used_at = now() WHERE id = $1', [credentialId]);
   }
 
+  /**
+   * Opens a password-reset ticket from a recovery code just verified. The schema checks it was
+   * a recovery code of this identity, verified in the last fifteen minutes.
+   */
+  async openReset(db: Db, identityId: string, otpId: string): Promise<string> {
+    const row = await one<{ id: string }>(
+      db,
+      `INSERT INTO password_reset (identity_id, otp_challenge_id, expires_at)
+       VALUES ($1, $2, now() + interval '15 minutes') RETURNING id`,
+      [identityId, otpId],
+    );
+    return row!.id;
+  }
+
+  /**
+   * Sets the new password through a ticket opened in this same sign-in (its code's flow), and
+   * with it revokes the old password and every session. null: no such usable ticket here.
+   */
+  async completeReset(
+    db: Db,
+    a: { ticketId: string; flowHash: Buffer; secretHash: Buffer },
+  ): Promise<{ identityId: string; credentialId: string } | null> {
+    const ticket = await one<{ identity_id: string }>(
+      db,
+      `SELECT pr.identity_id FROM password_reset pr
+         JOIN otp_challenge o ON o.id = pr.otp_challenge_id
+        WHERE pr.id = $1 AND o.flow_hash = $2 AND pr.consumed_at IS NULL AND pr.expires_at > now()
+        FOR UPDATE OF pr`,
+      [a.ticketId, a.flowHash],
+    );
+    if (!ticket) return null;
+    const done = await one<{ id: string }>(db, 'SELECT password_reset_complete($1, $2) AS id', [
+      a.ticketId,
+      a.secretHash,
+    ]);
+    return { identityId: ticket.identity_id, credentialId: done!.id };
+  }
+
   /** Appends to auth_event, in the caller's transaction or on its own. */
   async event(e: AuthEvent, db: Db = this.db.asDb()): Promise<void> {
     await db.query(
