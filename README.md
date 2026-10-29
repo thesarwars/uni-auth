@@ -6,11 +6,11 @@ reasons behind it, are in the GSN docs: `docs/dev-plan/auth-plan.md`.
 
 uni-auth is two halves:
 
-| Half                      | What it is                                                                                                                                                | State                                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                           |
-| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 4 — password and code sign-in, recovery by code; Google/Apple next |
-| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                |
+| Half                      | What it is                                                                                                                                                | State                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                       |
+| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 4 — password, code, Google and Apple sign-in; recovery by code |
+| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)            |
 
 The name is product-neutral on purpose. Products, brands and redirect URIs are client
 registrations; nothing in the code names a product.
@@ -59,6 +59,7 @@ src/identity/                 identifier parsing and the identity tables' statem
 src/credentials/              password hashing, the policy checklist, one-time codes
 src/delivery/                 email (SMTP) and WhatsApp (Meta Cloud API) senders; the dev outbox
 src/throttle/                 the per-identifier and per-address password throttle (Redis)
+src/upstream/                 Sign in with Google and with Apple: discovery, code exchange, ID tokens
 src/db/                       the pool and transactions
 views/                        server-rendered templates (Eta), one per screen
 tests/e2e/                    the sign-in, sign-out and refusal flows against the real Hydra
@@ -111,6 +112,14 @@ docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
   only in the sign-in that asked for it. The screens render what the triggers refused and keep
   no counter. A code is delivered after its transaction commits, and recovery by code ends
   signed in, with every other session revoked and the password lockout lifted.
+- **Google and Apple are redirect flows uni-auth runs itself.** No client posts an ID token. A
+  round trip is bound by a one-time `state` in Redis that a signed cookie ties to the browser,
+  a `nonce` in the ID token, and PKCE for Google; the ID token is checked against the provider's
+  keys, issuer, audience and expiry, and only `sub`, `email` and `email_verified` are used. A
+  first-time provider account joins an existing identity only when the provider verified the
+  email and uni-auth holds the same address verified; otherwise it signs nobody in. Apple's
+  callback is a cross-site `form_post`, the one route without a form token of ours - its state
+  is the check, and its cookie is `SameSite=None; Secure`.
 - **A code is never logged in production.** `EMAIL_DELIVERY=log` and `WHATSAPP_DELIVERY=log` write
   codes to the log for local work and the tests, and the process refuses to start with either
   in production.

@@ -17,12 +17,20 @@ import {
   type Resolved,
 } from '../identity/identity.repository';
 import { Throttle } from '../throttle/throttle.service';
+import { PROVIDERS, Upstream, type Provider } from '../upstream/upstream.service';
+import { UPSTREAM_COOKIE, type UpstreamError } from './upstream.controller';
+import { SignIn, type Authenticated, type Seen } from './sign-in.service';
 
 const Challenge = z.string().min(1).max(4096);
 const Typed = z.string().max(400);
 const Purpose = z.enum(['sign_in', 'recovery']);
 const LoginForm = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancel'), login_challenge: Challenge }),
+  z.object({
+    action: z.literal('upstream'),
+    login_challenge: Challenge,
+    provider: z.enum(PROVIDERS as [Provider, ...Provider[]]),
+  }),
   z.object({ action: z.literal('identify'), login_challenge: Challenge, identifier: Typed }),
   z.object({
     action: z.literal('password'),
@@ -57,11 +65,6 @@ type Form = z.infer<typeof LoginForm>;
 /** The remaining-attempts count is shown only once it is this low (auth-plan.md section 7.3). */
 const WARN_AT = 2;
 
-interface Seen {
-  ip: string;
-  userAgent: string | null;
-}
-
 /**
  * Hydra's login challenge (auth-plan.md section 7.1). Hydra sends the browser here whenever a
  * client asks for a sign-in; this controller decides who the member is and tells Hydra.
@@ -82,10 +85,17 @@ export class LoginController {
     private readonly email: EmailSender,
     private readonly whatsapp: WhatsAppSender,
     private readonly throttle: Throttle,
+    private readonly signIn: SignIn,
+    private readonly upstream: Upstream,
   ) {}
 
   @Get()
-  async show(@Query('login_challenge') raw: unknown, @Res() reply: FastifyReply): Promise<void> {
+  async show(
+    @Query('login_challenge') raw: unknown,
+    @Query('upstream') upstream: unknown,
+    @Query('upstream_error') upstreamError: unknown,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
     const challenge = parse(Challenge, raw);
     const request = await this.hydra.getLogin(challenge);
 
@@ -93,7 +103,9 @@ export class LoginController {
       await this.singleSignOn(reply, challenge, request);
       return;
     }
-    await this.identifierScreen(reply, challenge, request);
+    await this.identifierScreen(reply, challenge, request, {
+      error: upstreamReason(upstream, upstreamError),
+    });
   }
 
   @Post()
@@ -116,6 +128,10 @@ export class LoginController {
     }
 
     const request = await this.hydra.getLogin(challenge);
+    if (form.action === 'upstream') {
+      await this.leaveFor(reply, challenge, form.provider);
+      return;
+    }
     const id = parseIdentifier(form.identifier);
     if (!id) {
       await this.identifierScreen(reply, challenge, request, {
@@ -144,6 +160,30 @@ export class LoginController {
       case 'new_password':
         return this.newPassword(ctx, form);
     }
+  }
+
+  /**
+   * Sends the member to Google or Apple. The state it carries is bound to this browser by a
+   * signed cookie, so a callback from anyone else's browser names nothing. Apple returns by a
+   * cross-site POST, which only a SameSite=None cookie survives; Google by a top-level GET, for
+   * which Lax suffices.
+   */
+  private async leaveFor(
+    reply: FastifyReply,
+    challenge: string,
+    provider: Provider,
+  ): Promise<void> {
+    if (!this.upstream.configured(provider)) throw new BadRequestException('provider not enabled');
+    const { url, state } = await this.upstream.start(provider, challenge);
+    reply.setCookie(UPSTREAM_COOKIE, state, {
+      signed: true,
+      httpOnly: true,
+      path: '/upstream',
+      maxAge: 600,
+      sameSite: provider === 'apple' ? 'none' : 'lax',
+      secure: provider === 'apple' || env.NODE_ENV === 'production',
+    });
+    await redirect(reply, url);
   }
 
   /**
@@ -422,76 +462,8 @@ export class LoginController {
     });
   }
 
-  /**
-   * Opens the session in the identity database and tells Hydra who signed in. The session row
-   * is written first: a sign-in uni-auth has no record of must never reach a client.
-   */
-  private async accept(
-    ctx: Ctx,
-    a: {
-      identityId: string;
-      credentialId: string | null;
-      credentialKind: CredentialKind | null;
-      amr: string[];
-      detail?: Record<string, unknown>;
-    },
-  ): Promise<void> {
-    const { reply, challenge, request, seen } = ctx;
-    const sid = request.session_id;
-    if (!sid) throw new Error('Hydra sent a login request with no session id');
-
-    const opened = await this.db.tx(async (db) => {
-      const sessionId = await this.identities.openSession(db, {
-        identityId: a.identityId,
-        credentialId: a.credentialId,
-        sid,
-        clientId: request.client.client_id,
-        ip: seen.ip,
-        userAgent: seen.userAgent,
-        lifetimeSeconds: env.REMEMBER_SECONDS,
-      });
-      if (!sessionId) return null;
-      if (a.credentialId) await this.identities.markUsed(db, a.credentialId);
-      await this.identities.event(
-        {
-          kind: 'sign_in',
-          outcome: 'success',
-          identityId: a.identityId,
-          clientId: request.client.client_id,
-          credentialKind: a.credentialKind,
-          authSessionId: sessionId,
-          detail: a.detail,
-          ...seen,
-        },
-        db,
-      );
-      return sessionId;
-    });
-
-    // The browser's provider session belongs to someone else, or was revoked: end it at Hydra,
-    // and send the member round again on a clean one.
-    if (!opened) {
-      await this.hydra.revokeLoginSession(sid);
-      await renderError(
-        reply,
-        409,
-        'Please sign in again',
-        'This browser was signed in as someone else. Go back to the app and sign in again.',
-      );
-      return;
-    }
-
-    const to = await this.hydra.acceptLogin(challenge, {
-      subject: a.identityId,
-      remember: true,
-      remember_for: env.REMEMBER_SECONDS,
-      // How the member authenticated (RFC 8176 method names). The API reads these for step-up
-      // (section 9); one factor is assurance level 1.
-      acr: 'aal1',
-      amr: a.amr,
-      context: { auth_time: Math.floor(Date.now() / 1000) },
-    });
-    await redirect(reply, to);
+  private accept(ctx: Ctx, a: Authenticated): Promise<void> {
+    return this.signIn.accept(ctx.reply, ctx.challenge, ctx.request, ctx.seen, a);
   }
 
   private async purposeOf(otpId: string): Promise<OtpPurpose | null> {
@@ -559,6 +531,7 @@ export class LoginController {
         ...page(reply, challenge, request),
         typed: state.typed ?? '',
         error: state.error ?? null,
+        upstreams: this.upstream.enabled().map((p) => ({ id: p, name: providerName(p) })),
       },
       state.error ? 422 : 200,
     );
@@ -684,6 +657,21 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
 
 const minutesUntil = (t: Date): number =>
   Math.max(1, Math.round((t.getTime() - Date.now()) / 60_000));
+
+const providerName = (p: Provider): string => (p === 'google' ? 'Google' : 'Apple');
+
+/** The one-line reason for coming back from Google or Apple without being signed in. */
+function upstreamReason(provider: unknown, why: unknown): string | undefined {
+  if (provider !== 'google' && provider !== 'apple') return undefined;
+  const name = providerName(provider);
+  const reasons: Record<UpstreamError, string> = {
+    cancelled: `Signing in with ${name} was cancelled.`,
+    failed: `${name} couldn't sign you in. Try again, or use another way.`,
+    no_account: `No account here uses that ${name} account yet. Sign in another way first.`,
+    suspended: 'This account is suspended, so it cannot sign in.',
+  };
+  return typeof why === 'string' && why in reasons ? reasons[why as UpstreamError] : undefined;
+}
 
 const noun = (id: Identifier) => (id.kind === 'email' ? 'email address' : 'phone number');
 

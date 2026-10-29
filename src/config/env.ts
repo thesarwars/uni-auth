@@ -69,6 +69,34 @@ const Env = z.object({
     .max(90 * 24 * 3600)
     .default(90 * 24 * 3600),
 
+  /**
+   * This application's own public origin. Google and Apple send the member back to
+   * <origin>/upstream/<provider>/callback, which must be registered with them exactly.
+   */
+  LOGIN_PUBLIC_URL: z.string().url().default('http://localhost:3100'),
+
+  /**
+   * Sign in with Google: an OAuth client of type "Web application" in Google Cloud. Unset, the
+   * button is not shown. The issuer is overridable only so the tests can stand in for Google.
+   */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_ISSUER: z.string().url().default('https://accounts.google.com'),
+
+  /**
+   * Sign in with Apple: a Services ID (the client id), the team, and a Sign in with Apple key
+   * (.p8, PEM; literal \n allowed). Apple takes no static secret: each token request is
+   * authenticated by a short JWT signed with that key.
+   */
+  APPLE_CLIENT_ID: z.string().optional(),
+  APPLE_TEAM_ID: z.string().optional(),
+  APPLE_KEY_ID: z.string().optional(),
+  APPLE_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v?.replace(/\\n/g, '\n')),
+  APPLE_ISSUER: z.string().url().default('https://appleid.apple.com'),
+
   /** How long a one-time code lives. The schema's ceiling is fifteen minutes. */
   OTP_TTL_SECONDS: z.coerce
     .number()
@@ -125,6 +153,16 @@ const deliveryProblems = [
   parsed.data.WHATSAPP_DELIVERY === 'meta' &&
     !(parsed.data.WHATSAPP_PHONE_NUMBER_ID && parsed.data.WHATSAPP_ACCESS_TOKEN) &&
     'WHATSAPP_DELIVERY=meta needs WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN',
+  !!parsed.data.GOOGLE_CLIENT_ID !== !!parsed.data.GOOGLE_CLIENT_SECRET &&
+    'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET go together',
+  [
+    parsed.data.APPLE_CLIENT_ID,
+    parsed.data.APPLE_TEAM_ID,
+    parsed.data.APPLE_KEY_ID,
+    parsed.data.APPLE_PRIVATE_KEY,
+  ].filter(Boolean).length %
+    4 !==
+    0 && 'APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY go together',
 ].filter(Boolean);
 if (deliveryProblems.length) {
   process.stderr.write(`Invalid environment:\n  ${deliveryProblems.join('\n  ')}\n`);

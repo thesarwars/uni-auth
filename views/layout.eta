@@ -35,6 +35,8 @@
     .rules .met { color: var(--ink); }
     .rules .unmet { color: var(--danger); }
     .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .upstreams { display: grid; gap: 10px; margin-top: 20px; }
+    .or { text-align: center; margin: 0; font-size: .875rem; }
     footer { margin-top: 24px; font-size: .875rem; color: var(--muted); }
   </style>
 </head>

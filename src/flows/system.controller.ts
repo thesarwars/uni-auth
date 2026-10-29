@@ -3,7 +3,7 @@ import type { FastifyReply } from 'fastify';
 import { renderError } from '../common/pages';
 import { Database } from '../db/database.service';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
-import { Throttle } from '../throttle/throttle.service';
+import { RedisService } from '../redis/redis.service';
 
 /** Hydra's urls.error, and the probes. */
 @Controller()
@@ -11,7 +11,7 @@ export class SystemController {
   constructor(
     private readonly hydra: HydraAdmin,
     private readonly db: Database,
-    private readonly throttle: Throttle,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -48,7 +48,7 @@ export class SystemController {
     const [hydra, db, throttle] = await Promise.all([
       this.hydra.ready(),
       this.db.ready(),
-      this.throttle.ready(),
+      this.redis.ready(),
     ]);
     if (!hydra || !db || !throttle) {
       throw new ServiceUnavailableException(

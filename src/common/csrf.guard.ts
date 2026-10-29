@@ -1,9 +1,19 @@
-import { Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import { Injectable, SetMetadata, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import Tokens from '@fastify/csrf';
 import type { FastifyRequest } from 'fastify';
 
 // The plugin is registered without csrfOpts, so its tokens are the defaults: no userInfo.
 const tokens = new Tokens({ userInfo: false });
+
+const CROSS_SITE = 'uni-auth:cross-site';
+
+/**
+ * Marks a route another site legitimately POSTs to - Apple's form_post callback - so it carries
+ * no form token of ours. Such a route must authenticate the post some other way: the callback
+ * spends a one-time `state` that a signed cookie binds to this browser.
+ */
+export const CrossSite = (): MethodDecorator => SetMetadata(CROSS_SITE, true);
 
 /** A form posted without a token matching its cookie: stale, replayed or forged. */
 export class CsrfRejected extends Error {
@@ -21,9 +31,12 @@ export class CsrfRejected extends Error {
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
   canActivate(ctx: ExecutionContext): boolean {
     const req = ctx.switchToHttp().getRequest<FastifyRequest>();
     if (req.method !== 'POST') return true;
+    if (this.reflector.get<boolean>(CROSS_SITE, ctx.getHandler())) return true;
 
     const cookie = req.cookies._csrf;
     const unsigned = cookie ? req.unsignCookie(cookie) : null;

@@ -1,7 +1,7 @@
-import { Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { Redis } from 'ioredis';
+import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { env } from '../config/env';
+import { RedisService } from '../redis/redis.service';
 
 /** Failed password attempts per identifier before a lockout, and how long one lasts. */
 export const IDENTIFIER_LIMIT = 5;
@@ -20,12 +20,12 @@ export type ThrottleState = { kind: 'open'; remaining: number } | { kind: 'locke
  * unreachable the throttle fails closed - a password is never checked unthrottled.
  */
 @Injectable()
-export class Throttle implements OnModuleDestroy {
-  private readonly redis = new Redis(env.REDIS_URL, {
-    lazyConnect: false,
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
-  });
+export class Throttle {
+  private readonly redis;
+
+  constructor(redis: RedisService) {
+    this.redis = redis.client;
+  }
 
   /** Whether a password may be checked now for this identifier from this address. */
   async check(identifier: string, address: string): Promise<ThrottleState> {
@@ -84,18 +84,6 @@ export class Throttle implements OnModuleDestroy {
   /** A completed password reset lifts the lockout: the reset was the way out it offered. */
   async lift(identifier: string): Promise<void> {
     await this.redis.del(this.key('fail', identifier), this.key('lock', identifier));
-  }
-
-  async ready(): Promise<boolean> {
-    try {
-      return (await this.redis.ping()) === 'PONG';
-    } catch {
-      return false;
-    }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    this.redis.disconnect();
   }
 
   /** Keys carry a hash, so Redis never holds an email address or a phone number. */

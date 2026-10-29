@@ -69,6 +69,55 @@ export class IdentityRepository {
     return { identityId: row.identity_id, status: row.status, credentials: row.credentials ?? [] };
   }
 
+  /** The identity a live Google or Apple credential belongs to, by the provider's `sub`. */
+  async byProvider(
+    kind: 'oauth_google' | 'oauth_apple',
+    subject: string,
+  ): Promise<{ identityId: string; status: IdentityStatus; credentialId: string } | null> {
+    const [row] = await this.db.rows<{ identity_id: string; status: IdentityStatus; id: string }>(
+      `SELECT c.id, c.identity_id, i.status FROM credential c JOIN identity i ON i.id = c.identity_id
+        WHERE c.kind = $1 AND c.provider_subject = $2 AND c.revoked_at IS NULL`,
+      [kind, subject],
+    );
+    return row ? { identityId: row.identity_id, status: row.status, credentialId: row.id } : null;
+  }
+
+  /** Adds a Google or Apple credential to an identity, and journals it. */
+  async linkProvider(
+    db: Db,
+    a: {
+      identityId: string;
+      kind: 'oauth_google' | 'oauth_apple';
+      subject: string;
+      email: string | null;
+      emailVerified: boolean;
+      clientId: string;
+      ip: string | null;
+      userAgent: string | null;
+    },
+  ): Promise<string> {
+    const row = await one<{ id: string }>(
+      db,
+      `INSERT INTO credential (identity_id, kind, provider_subject, provider_email, provider_email_verified)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [a.identityId, a.kind, a.subject, a.email, a.email === null ? null : a.emailVerified],
+    );
+    await this.event(
+      {
+        kind: 'credential_added',
+        outcome: 'success',
+        identityId: a.identityId,
+        clientId: a.clientId,
+        credentialKind: a.kind,
+        detail: { linked_by: 'verified_email' },
+        ip: a.ip,
+        userAgent: a.userAgent,
+      },
+      db,
+    );
+    return row!.id;
+  }
+
   async livePassword(identityId: string): Promise<{ id: string; secret_hash: Buffer } | null> {
     const [row] = await this.db.rows<{ id: string; secret_hash: Buffer }>(
       `SELECT id, secret_hash FROM credential
