@@ -4,14 +4,14 @@ import { env } from '../config/env';
 import { one, type Db } from '../db/database.service';
 import type { Identifier } from '../identity/identifier';
 
-export type OtpPurpose = 'sign_in' | 'recovery';
+export type OtpPurpose = 'sign_in' | 'recovery' | 'signup';
 export type OtpChannel = 'email' | 'whatsapp';
 
 const CODE_LENGTH = 6;
 
 interface ChallengeRow {
   id: string;
-  identity_id: string;
+  identity_id: string | null;
   purpose: OtpPurpose;
   channel: OtpChannel;
   destination: string;
@@ -43,7 +43,7 @@ export type SendOutcome =
   | { kind: 'rate_limited'; availableAt: Date };
 
 export type VerifyOutcome =
-  | { kind: 'verified'; otpId: string; identityId: string }
+  | { kind: 'verified'; otpId: string; identityId: string | null; purpose: OtpPurpose }
   | { kind: 'invalid'; remaining: number; view: CodeView }
   | { kind: 'locked'; until: Date }
   | { kind: 'expired' }
@@ -67,7 +67,7 @@ export class OtpService {
    */
   async send(
     db: Db,
-    a: { identityId: string; purpose: OtpPurpose; to: Identifier; flow: string },
+    a: { identityId: string | null; purpose: OtpPurpose; to: Identifier; flow: string },
   ): Promise<SendOutcome> {
     const destination = a.to.value;
     const channel: OtpChannel = a.to.kind === 'email' ? 'email' : 'whatsapp';
@@ -160,7 +160,7 @@ export class OtpService {
         "UPDATE otp_challenge SET status = 'verified', attempt_count = attempt_count + 1 WHERE id = $1",
         [row.id],
       );
-      return { kind: 'verified', otpId: row.id, identityId: row.identity_id };
+      return { kind: 'verified', otpId: row.id, identityId: row.identity_id, purpose: row.purpose };
     }
 
     // The trigger turns the attempt that reaches the cap into a thirty-minute lock.

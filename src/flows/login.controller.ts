@@ -11,7 +11,9 @@ import { EmailSender } from '../delivery/email.sender';
 import { WhatsAppSender } from '../delivery/whatsapp.sender';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { masked, parseIdentifier, type Identifier } from '../identity/identifier';
+import { SignupStore } from '../identity/signup.store';
 import {
+  AddressTaken,
   IdentityRepository,
   type CredentialKind,
   type Resolved,
@@ -23,7 +25,7 @@ import { SignIn, type Authenticated, type Seen } from './sign-in.service';
 
 const Challenge = z.string().min(1).max(4096);
 const Typed = z.string().max(400);
-const Purpose = z.enum(['sign_in', 'recovery']);
+const Purpose = z.enum(['sign_in', 'recovery', 'signup']);
 const LoginForm = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancel'), login_challenge: Challenge }),
   z.object({
@@ -50,6 +52,18 @@ const LoginForm = z.discriminatedUnion('action', [
     identifier: Typed,
     otp_id: z.string().uuid(),
     code: z.string().max(20),
+  }),
+  z.object({
+    action: z.literal('signup'),
+    login_challenge: Challenge,
+    identifier: Typed,
+    password: z.string().max(1024),
+    confirm: z.string().max(1024),
+  }),
+  z.object({
+    action: z.literal('upstream_signup'),
+    login_challenge: Challenge,
+    token: z.string().min(1).max(100),
   }),
   z.object({
     action: z.literal('new_password'),
@@ -87,6 +101,7 @@ export class LoginController {
     private readonly throttle: Throttle,
     private readonly signIn: SignIn,
     private readonly upstream: Upstream,
+    private readonly signups: SignupStore,
   ) {}
 
   @Get()
@@ -94,6 +109,7 @@ export class LoginController {
     @Query('login_challenge') raw: unknown,
     @Query('upstream') upstream: unknown,
     @Query('upstream_error') upstreamError: unknown,
+    @Query('upstream_signup') upstreamSignup: unknown,
     @Res() reply: FastifyReply,
   ): Promise<void> {
     const challenge = parse(Challenge, raw);
@@ -102,6 +118,18 @@ export class LoginController {
     if (request.skip) {
       await this.singleSignOn(reply, challenge, request);
       return;
+    }
+    if (typeof upstreamSignup === 'string' && upstreamSignup.length <= 100) {
+      const pending = await this.signups.peekUpstream(upstreamSignup, challenge);
+      if (pending) {
+        await render(reply, 'upstream-signup', 'Create your account', {
+          ...page(reply, challenge, request),
+          token: upstreamSignup,
+          email: pending.email,
+          upstreamName: providerName(pending.provider),
+        });
+        return;
+      }
     }
     await this.identifierScreen(reply, challenge, request, {
       error: upstreamReason(upstream, upstreamError),
@@ -132,6 +160,11 @@ export class LoginController {
       await this.leaveFor(reply, challenge, form.provider);
       return;
     }
+    const seen = { ip: req.ip, userAgent: req.headers['user-agent'] ?? null };
+    if (form.action === 'upstream_signup') {
+      await this.upstreamSignup({ reply, challenge, request, seen }, form.token);
+      return;
+    }
     const id = parseIdentifier(form.identifier);
     if (!id) {
       await this.identifierScreen(reply, challenge, request, {
@@ -140,13 +173,7 @@ export class LoginController {
       });
       return;
     }
-    const ctx: Ctx = {
-      reply,
-      challenge,
-      request,
-      id,
-      seen: { ip: req.ip, userAgent: req.headers['user-agent'] ?? null },
-    };
+    const ctx: Ctx = { reply, challenge, request, id, seen };
 
     switch (form.action) {
       case 'identify':
@@ -159,6 +186,8 @@ export class LoginController {
         return this.verifyCode(ctx, form);
       case 'new_password':
         return this.newPassword(ctx, form);
+      case 'signup':
+        return this.signup(ctx, form);
     }
   }
 
@@ -228,10 +257,8 @@ export class LoginController {
   private async identify(ctx: Ctx, typed: string): Promise<void> {
     const found = await this.identities.resolve(ctx.id);
     if (!found) {
-      await this.identifierScreen(ctx.reply, ctx.challenge, ctx.request, {
-        typed,
-        error: `We couldn't find an account with that ${noun(ctx.id)}.`,
-      });
+      // Nobody holds this address verified: the member can make it theirs.
+      await this.signupScreen(ctx);
       return;
     }
     if (found.status === 'suspended') {
@@ -301,6 +328,11 @@ export class LoginController {
    * same sign-in is a resend of the live code while it has resends left.
    */
   private async sendCode(ctx: Ctx, purpose: OtpPurpose, known?: Resolved): Promise<void> {
+    if (purpose === 'signup') {
+      // Someone proved this address since the sign-up began: it signs in now, not up.
+      if (await this.identities.resolve(ctx.id)) return this.identify(ctx, ctx.id.value);
+      return this.issue(ctx, 'signup', null);
+    }
     const found = known ?? (await this.identities.resolve(ctx.id));
     if (!found) {
       await this.identifierScreen(ctx.reply, ctx.challenge, ctx.request, {
@@ -313,10 +345,14 @@ export class LoginController {
       await this.suspended(ctx, ctx.id.value);
       return;
     }
+    await this.issue(ctx, purpose, found.identityId);
+  }
 
+  /** Issues or resends the code, delivers it after commit, and shows the code screen. */
+  private async issue(ctx: Ctx, purpose: OtpPurpose, identityId: string | null): Promise<void> {
     const sent = await this.db.tx((db) =>
       this.otp.send(db, {
-        identityId: found.identityId,
+        identityId,
         purpose,
         to: ctx.id,
         flow: ctx.challenge,
@@ -383,14 +419,18 @@ export class LoginController {
         break;
     }
 
+    if (outcome.purpose === 'signup') {
+      await this.createAccount(ctx);
+      return;
+    }
+
     const found = await this.identities.resolve(ctx.id);
     if (!found || found.identityId !== outcome.identityId || found.status !== 'active') {
       await this.suspended(ctx, ctx.id.value);
       return;
     }
 
-    const purpose = await this.purposeOf(outcome.otpId);
-    if (purpose === 'recovery') {
+    if (outcome.purpose === 'recovery') {
       const ticket = await this.db.tx((db) =>
         this.identities.openReset(db, found.identityId, outcome.otpId),
       );
@@ -462,16 +502,107 @@ export class LoginController {
     });
   }
 
-  private accept(ctx: Ctx, a: Authenticated): Promise<void> {
-    return this.signIn.accept(ctx.reply, ctx.challenge, ctx.request, ctx.seen, a);
+  /**
+   * Create an account, step one: the password, checked against the policy before anything is
+   * sent. Its hash waits in Redis, keyed by this sign-in, for the code that proves the address.
+   */
+  private async signup(ctx: Ctx, form: Extract<Form, { action: 'signup' }>): Promise<void> {
+    if (await this.identities.resolve(ctx.id)) return this.identify(ctx, ctx.id.value);
+
+    const policy = await this.passwords.policyInEffect(this.db.asDb());
+    const failed = checkPassword(policy, form.password).filter((r) => !r.met);
+    if (failed.length > 0 || form.password !== form.confirm) {
+      await this.signupScreen(ctx, {
+        error:
+          failed.length > 0
+            ? 'Your password does not meet every rule yet.'
+            : 'The two passwords do not match.',
+        typed: form.password,
+      });
+      return;
+    }
+    const secretHash = await this.passwords.hash(form.password);
+    await this.signups.hold(ctx.challenge, {
+      identifier: ctx.id,
+      secretHash: secretHash.toString('base64'),
+    });
+    await this.issue(ctx, 'signup', null);
   }
 
-  private async purposeOf(otpId: string): Promise<OtpPurpose | null> {
-    const [row] = await this.db.rows<{ purpose: OtpPurpose }>(
-      'SELECT purpose FROM otp_challenge WHERE id = $1',
-      [otpId],
+  /** Create an account, step two: the code proved the address, so the identity is written. */
+  private async createAccount(ctx: Ctx): Promise<void> {
+    const pending = await this.signups.take(ctx.challenge);
+    if (!pending || pending.identifier.value !== ctx.id.value) {
+      await this.codeScreen(ctx, 'signup', null, { expired: true, ticketExpired: true });
+      return;
+    }
+    const created = await this.create(ctx, {
+      identifier: pending.identifier,
+      credential: { kind: 'password', secretHash: Buffer.from(pending.secretHash, 'base64') },
+    });
+    if (!created) return;
+    await this.accept(ctx, {
+      identityId: created.identityId,
+      credentialId: created.credentialId,
+      credentialKind: 'password',
+      amr: ['otp'],
+      detail: { method: 'signup' },
+    });
+  }
+
+  /** Create an account with Google or Apple, once the member confirms it. */
+  private async upstreamSignup(ctx: Omit<Ctx, 'id'>, token: string): Promise<void> {
+    const pending = await this.signups.takeUpstream(token, ctx.challenge);
+    if (!pending) {
+      await this.identifierScreen(ctx.reply, ctx.challenge, ctx.request, {
+        error: 'That took too long. Choose how to continue again.',
+      });
+      return;
+    }
+    const id: Identifier = { kind: 'email', value: pending.email };
+    const kind = pending.provider === 'google' ? 'oauth_google' : 'oauth_apple';
+    const created = await this.create(
+      { ...ctx, id },
+      { identifier: id, credential: { kind, subject: pending.subject, email: pending.email } },
     );
-    return row?.purpose ?? null;
+    if (!created) return;
+    await this.accept(
+      { ...ctx, id },
+      {
+        identityId: created.identityId,
+        credentialId: created.credentialId,
+        credentialKind: kind,
+        amr: ['fed'],
+        detail: { method: 'signup', provider: pending.provider },
+      },
+    );
+  }
+
+  /** Writes the identity; null, with the screen already shown, if the address was taken first. */
+  private async create(
+    ctx: Ctx,
+    a: Pick<Parameters<IdentityRepository['createIdentity']>[1], 'identifier' | 'credential'>,
+  ): Promise<{ identityId: string; credentialId: string } | null> {
+    try {
+      return await this.db.tx((db) =>
+        this.identities.createIdentity(db, {
+          ...a,
+          clientId: ctx.request.client.client_id,
+          ...ctx.seen,
+        }),
+      );
+    } catch (err) {
+      if (!(err instanceof AddressTaken)) throw err;
+      await this.identifierScreen(ctx.reply, ctx.challenge, ctx.request, {
+        typed: a.identifier.value,
+        error: `An account already uses that ${noun(a.identifier)}. Sign in instead.`,
+      });
+      return null;
+    }
+  }
+
+  private accept(ctx: Ctx, a: Authenticated): Promise<void> {
+    return this.signIn.accept(ctx.reply, ctx.challenge, ctx.request, ctx.seen, a);
   }
 
   private journalFailure(
@@ -579,14 +710,14 @@ export class LoginController {
     return render(
       ctx.reply,
       'code',
-      purpose === 'recovery' ? 'Reset your password' : 'Enter your code',
+      heading(purpose, ctx.id),
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
         destination: masked(ctx.id),
         channel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
         purpose: purpose ?? 'sign_in',
-        recovery: purpose === 'recovery',
+        heading: heading(purpose, ctx.id),
         code,
         error: state.error ?? null,
         remaining: state.remaining ?? null,
@@ -597,6 +728,28 @@ export class LoginController {
         ticketExpired: !!state.ticketExpired,
       },
       status,
+    );
+  }
+
+  private async signupScreen(
+    ctx: Ctx,
+    state: { error?: string; typed?: string } = {},
+  ): Promise<void> {
+    const policy = await this.passwords.policyInEffect(this.db.asDb());
+    await render(
+      ctx.reply,
+      'signup',
+      'Create your account',
+      {
+        ...page(ctx.reply, ctx.challenge, ctx.request),
+        identifier: ctx.id.value,
+        noun: noun(ctx.id),
+        channel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
+        rules: checkPassword(policy, state.typed ?? ''),
+        checked: state.typed !== undefined,
+        error: state.error ?? null,
+      },
+      state.error ? 422 : 200,
     );
   }
 
@@ -657,6 +810,12 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
 
 const minutesUntil = (t: Date): number =>
   Math.max(1, Math.round((t.getTime() - Date.now()) / 60_000));
+
+function heading(purpose: OtpPurpose | null, id: Identifier): string {
+  if (purpose === 'recovery') return 'Reset your password';
+  if (purpose === 'signup') return `Confirm your ${noun(id)}`;
+  return 'Enter your code';
+}
 
 const providerName = (p: Provider): string => (p === 'google' ? 'Google' : 'Apple');
 

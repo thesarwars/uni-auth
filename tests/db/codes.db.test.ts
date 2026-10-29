@@ -211,6 +211,38 @@ describe('otp_challenge', () => {
   });
 });
 
+describe('signup codes', () => {
+  it('go only to an address no identity holds verified, however it was typed', async () => {
+    const a = await newIdentity();
+    await verifiedEmail(a, 'taken@example.com');
+    expect(
+      await refused(
+        `INSERT INTO otp_challenge (identity_id, purpose, channel, destination, flow_hash, code_hash, code_salt, expires_at)
+         VALUES (NULL, 'signup', 'email', 'taken@example.com', $1, $2, $3, now() + interval '10 minutes')`,
+        [sha(), sha(), randomBytes(16)],
+      ),
+    ).toMatch(/no identity holds verified/);
+
+    // An address someone only typed does not block its owner from signing up.
+    const b = await newIdentity();
+    await q(
+      "INSERT INTO identity_identifier (identity_id, kind, value) VALUES ($1, 'email', 'typed@example.com')",
+      [b],
+    );
+    await issue(null, 'typed@example.com', 'signup');
+  });
+
+  it('are the only codes with no owner', async () => {
+    expect(
+      await refused(
+        `INSERT INTO otp_challenge (identity_id, purpose, channel, destination, flow_hash, code_hash, code_salt, expires_at)
+         VALUES (NULL, 'sign_in', 'email', 'nobody@example.com', $1, $2, $3, now() + interval '10 minutes')`,
+        [sha(), sha(), randomBytes(16)],
+      ),
+    ).toMatch(/verified identifier of an active identity/);
+  });
+});
+
 describe('password_reset', () => {
   async function verifiedRecovery(identityId: string, email: string): Promise<string> {
     const id = await issue(identityId, email, 'recovery');

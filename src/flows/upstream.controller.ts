@@ -6,6 +6,7 @@ import { redirect, renderError } from '../common/pages';
 import { Database } from '../db/database.service';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
 import { IdentityRepository } from '../identity/identity.repository';
+import { SignupStore } from '../identity/signup.store';
 import { Upstream, type Provider } from '../upstream/upstream.service';
 import { SignIn } from './sign-in.service';
 
@@ -35,6 +36,7 @@ export class UpstreamController {
     private readonly db: Database,
     private readonly identities: IdentityRepository,
     private readonly signIn: SignIn,
+    private readonly signups: SignupStore,
   ) {}
 
   @Get('google/callback')
@@ -144,6 +146,24 @@ export class UpstreamController {
         await accept(found.identityId, credentialId);
         return;
       }
+    }
+    // No account has this provider account or its address: offer to create one with it. Only a
+    // verified email can name a new identity; the member confirms before anything is written.
+    if (who.email && who.emailVerified) {
+      const token = await this.signups.holdUpstream({
+        provider,
+        subject: who.subject,
+        email: who.email,
+        loginChallenge: pending.loginChallenge,
+      });
+      await redirect(
+        reply,
+        `/login?${new URLSearchParams({
+          login_challenge: pending.loginChallenge,
+          upstream_signup: token,
+        }).toString()}`,
+      );
+      return;
     }
     await back('no_account');
   }

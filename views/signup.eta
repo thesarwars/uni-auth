@@ -1,0 +1,23 @@
+<% layout('./layout') %>
+<%~ include('./_header', it) %>
+<h1>Create your account</h1>
+<p>No account uses <strong><%= it.identifier %></strong> yet. Choose a password, and we'll send a code by <%= it.channel %> to confirm the <%= it.noun %> is yours.</p>
+<form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+  <input type="text" autocomplete="username" value="<%= it.identifier %>" hidden readonly>
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="new-password" required autofocus aria-describedby="rules<% if (it.error) { %> password-error<% } %>"<% if (it.error) { %> aria-invalid="true"<% } %>>
+  <ul id="rules" class="rules">
+  <% it.rules.forEach(function (r) { %>
+    <li class="<%= it.checked ? (r.met ? 'met' : 'unmet') : '' %>"><%= r.label %><% if (it.checked) { %><span class="sr"><%= r.met ? ' (done)' : ' (not yet)' %></span><% } %></li>
+  <% }) %>
+  </ul>
+  <label for="confirm">Type it again</label>
+  <input id="confirm" name="confirm" type="password" autocomplete="new-password" required>
+  <% if (it.error) { %><p id="password-error" class="error" role="alert"><%= it.error %></p><% } %>
+  <div class="actions">
+    <button type="submit" name="action" value="signup">Create account</button>
+  </div>
+</form>
+<p class="links"><a href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Use a different email or phone</a></p>
+<footer>Signing in through <%= it.providerName %></footer>

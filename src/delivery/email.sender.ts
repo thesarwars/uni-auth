@@ -24,9 +24,18 @@ export class EmailSender {
 
   constructor(private readonly outbox: Outbox) {}
 
-  async sendCode(to: string, code: string, purpose: 'sign_in' | 'recovery'): Promise<void> {
+  async sendCode(
+    to: string,
+    code: string,
+    purpose: 'sign_in' | 'recovery' | 'signup',
+  ): Promise<void> {
     const minutes = Math.round(env.OTP_TTL_SECONDS / 60);
-    const what = purpose === 'recovery' ? 'reset your password' : 'sign in';
+    const what =
+      purpose === 'recovery'
+        ? 'reset your password'
+        : purpose === 'signup'
+          ? 'create your account'
+          : 'sign in';
     const subject = `Your ${env.PROVIDER_NAME} code: ${code}`;
     const text =
       `Your code to ${what} is ${code}.\n\n` +

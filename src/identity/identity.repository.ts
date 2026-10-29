@@ -232,6 +232,75 @@ export class IdentityRepository {
     return { identityId: ticket.identity_id, credentialId: done!.id };
   }
 
+  /**
+   * Creates an identity from a proved address: the identifier verified and primary, and the one
+   * credential it signs in with - a password, or a Google or Apple account. Journals each step.
+   * Throws AddressTaken when another identity verified the same address first.
+   */
+  async createIdentity(
+    db: Db,
+    a: {
+      identifier: Identifier;
+      credential:
+        | { kind: 'password'; secretHash: Buffer }
+        | { kind: 'oauth_google' | 'oauth_apple'; subject: string; email: string };
+      clientId: string;
+      ip: string | null;
+      userAgent: string | null;
+    },
+  ): Promise<{ identityId: string; credentialId: string }> {
+    await db.query('SAVEPOINT create_identity');
+    try {
+      const identity = await one<{ id: string }>(
+        db,
+        'INSERT INTO identity DEFAULT VALUES RETURNING id',
+      );
+      const identityId = identity!.id;
+      await db.query(
+        `INSERT INTO identity_identifier (identity_id, kind, value, verified_at, is_primary)
+         VALUES ($1, $2, $3, now(), true)`,
+        [identityId, a.identifier.kind, a.identifier.value],
+      );
+      const c = a.credential;
+      const credential =
+        c.kind === 'password'
+          ? await one<{ id: string }>(
+              db,
+              `INSERT INTO credential (identity_id, kind, secret_hash, password_policy_id)
+               VALUES ($1, 'password', $2, password_policy_in_effect()) RETURNING id`,
+              [identityId, c.secretHash],
+            )
+          : await one<{ id: string }>(
+              db,
+              `INSERT INTO credential (identity_id, kind, provider_subject, provider_email, provider_email_verified)
+               VALUES ($1, $2, $3, $4, true) RETURNING id`,
+              [identityId, c.kind, c.subject, c.email],
+            );
+      await db.query('RELEASE SAVEPOINT create_identity');
+
+      const base = { identityId, clientId: a.clientId, ip: a.ip, userAgent: a.userAgent };
+      await this.event({ ...base, kind: 'identity_created', outcome: 'success' }, db);
+      await this.event(
+        {
+          ...base,
+          kind: 'identifier_verified',
+          outcome: 'success',
+          detail: { kind: a.identifier.kind },
+        },
+        db,
+      );
+      await this.event(
+        { ...base, kind: 'credential_added', outcome: 'success', credentialKind: c.kind },
+        db,
+      );
+      return { identityId, credentialId: credential!.id };
+    } catch (err) {
+      await db.query('ROLLBACK TO SAVEPOINT create_identity');
+      if ((err as { code?: string }).code === '23505') throw new AddressTaken();
+      throw err;
+    }
+  }
+
   /** Appends to auth_event, in the caller's transaction or on its own. */
   async event(e: AuthEvent, db: Db = this.db.asDb()): Promise<void> {
     await db.query(
@@ -252,6 +321,13 @@ export class IdentityRepository {
         e.detail ?? {},
       ],
     );
+  }
+}
+
+/** Another identity verified the address, or claimed the provider account, first. */
+export class AddressTaken extends Error {
+  constructor() {
+    super('address already belongs to an identity');
   }
 }
 

@@ -1,0 +1,14 @@
+<% layout('./layout') %>
+<%~ include('./_header', it) %>
+<h1>Create your account</h1>
+<p>No account uses <strong><%= it.email %></strong> yet. Create one that signs in with <%= it.upstreamName %>?</p>
+<form method="post" action="/login">
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+  <input type="hidden" name="token" value="<%= it.token %>">
+  <div class="actions">
+    <button type="submit" name="action" value="upstream_signup">Create account</button>
+  </div>
+</form>
+<p class="links"><a href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Use another way</a></p>
+<footer>Signing in through <%= it.providerName %></footer>

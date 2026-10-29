@@ -62,11 +62,12 @@ describe('the identifier screen', () => {
     expect(res.html).toContain('value="07700 900123"');
   });
 
-  it('says so when no account has the address', async () => {
+  it('offers to create an account when no account has the address', async () => {
     const b = browser();
     const res = await identify(b, await loginPage(b), 'nobody-here@example.com');
-    expect(res.status).toBe(422);
-    expect(res.html).toContain('find an account with that email address.');
+    expect(res.status).toBe(200);
+    expect(res.html).toContain('Create your account');
+    expect(res.html).toContain('No account uses <strong>nobody-here@example.com</strong> yet.');
   });
 
   it('matches an address however it was typed', async () => {
