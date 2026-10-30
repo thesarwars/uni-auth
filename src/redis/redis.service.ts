@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { env } from '../config/env';
 
@@ -8,10 +8,31 @@ import { env } from '../config/env';
  */
 @Injectable()
 export class RedisService implements OnModuleDestroy {
+  private readonly logger = new Logger(RedisService.name);
+  private down = false;
+
   readonly client = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
   });
+
+  constructor() {
+    // ioredis retries on its own and emits an error on every attempt; without a listener each
+    // one is an "Unhandled error event". Say once that Redis is gone - the throttle then fails
+    // closed and /ready says so - and once that it is back.
+    this.client.on('error', (err: Error) => {
+      if (this.down) return;
+      this.down = true;
+      this.logger.warn(
+        `Redis unreachable (${err.message}); retrying. Passwords are not checked meanwhile.`,
+      );
+    });
+    this.client.on('ready', () => {
+      if (!this.down) return;
+      this.down = false;
+      this.logger.log('Redis reachable again');
+    });
+  }
 
   async ready(): Promise<boolean> {
     try {
