@@ -5,6 +5,8 @@ import { PageErrorFilter } from './common/page-error.filter';
 import { ConsentController } from './flows/consent.controller';
 import { LoginController } from './flows/login.controller';
 import { LogoutController } from './flows/logout.controller';
+import { HooksController } from './flows/hooks.controller';
+import { SessionEnder } from './sessions/session-ender';
 import { SignIn } from './flows/sign-in.service';
 import { UpstreamController } from './flows/upstream.controller';
 import { SystemController } from './flows/system.controller';
@@ -27,6 +29,7 @@ import { Upstream } from './upstream/upstream.service';
     UpstreamController,
     ConsentController,
     LogoutController,
+    HooksController,
     SystemController,
   ],
   providers: [
@@ -42,6 +45,7 @@ import { Upstream } from './upstream/upstream.service';
     Throttle,
     SignIn,
     SignupStore,
+    SessionEnder,
     Upstream,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },

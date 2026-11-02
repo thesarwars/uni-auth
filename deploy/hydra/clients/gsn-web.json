@@ -9,5 +9,10 @@
   "redirect_uris": ["http://localhost:5173/callback"],
   "post_logout_redirect_uris": ["http://localhost:5173/"],
   "skip_consent": true,
-  "metadata": { "first_party": true, "product": "gsn" }
+  "metadata": {
+    "first_party": true,
+    "product": "gsn"
+  },
+  "backchannel_logout_uri": "http://host.docker.internal:4041/v1/uni-auth/backchannel-logout",
+  "backchannel_logout_session_required": true
 }

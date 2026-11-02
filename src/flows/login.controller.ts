@@ -12,6 +12,7 @@ import { WhatsAppSender } from '../delivery/whatsapp.sender';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { masked, parseIdentifier, type Identifier } from '../identity/identifier';
 import { SignupStore } from '../identity/signup.store';
+import { SessionEnder } from '../sessions/session-ender';
 import {
   AddressTaken,
   IdentityRepository,
@@ -102,6 +103,7 @@ export class LoginController {
     private readonly signIn: SignIn,
     private readonly upstream: Upstream,
     private readonly signups: SignupStore,
+    private readonly sessionEnder: SessionEnder,
   ) {}
 
   @Get()
@@ -490,6 +492,9 @@ export class LoginController {
       await this.codeScreen(ctx, null, null, { expired: true, ticketExpired: true });
       return;
     }
+    // The reset revoked every session in the database; end them at Hydra too, so each client
+    // hears of it by back-channel logout.
+    await this.sessionEnder.endAtHydra(done.ended);
 
     // The reset was the way out the lockout screen offered; it lifts the lockout.
     await this.throttle.lift(ctx.id.value);

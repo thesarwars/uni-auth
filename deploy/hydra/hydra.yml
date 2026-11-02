@@ -59,6 +59,19 @@ oauth2:
     - auth_time
   mirror_top_level_claims: false
   expose_internal_errors: false
+  # Before Hydra refreshes a token it asks the login application whether the session is still
+  # good (auth-plan.md section 12.2, part 7): a signed-out or revoked session, or a suspended
+  # or closed identity, is refused, so a refresh token dies with its session. Only refreshes:
+  # a code exchange follows a sign-in the login application just accepted, and a
+  # client-credentials token has no session. The shared secret comes from the environment
+  # (OAUTH2_REFRESH_TOKEN_HOOK_AUTH_CONFIG_VALUE, set by docker-compose.yml).
+  refresh_token_hook:
+    url: http://host.docker.internal:3100/hooks/refresh
+    auth:
+      type: api_key
+      config:
+        in: header
+        name: Authorization
 
 oidc:
   subject_identifiers:

@@ -74,6 +74,8 @@ services:
       DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@hydra-db:5432/hydra?sslmode=disable
       SECRETS_SYSTEM: ${HYDRA_SECRETS_SYSTEM:?run scripts/dev-secrets.sh}
       SECRETS_COOKIE: ${HYDRA_SECRETS_COOKIE:?run scripts/dev-secrets.sh}
+      # How Hydra proves itself to the login application's refresh hook (hydra.yml).
+      OAUTH2_REFRESH_TOKEN_HOOK_AUTH_CONFIG_VALUE: Bearer ${HYDRA_HOOK_SECRET:?run scripts/dev-secrets.sh}
     volumes:
       - ./deploy/hydra/hydra.yml:/etc/hydra/hydra.yml:ro
     ports:

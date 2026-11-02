@@ -6,11 +6,11 @@ reasons behind it, are in the GSN docs: `docs/dev-plan/auth-plan.md`.
 
 uni-auth is two halves:
 
-| Half                      | What it is                                                                                                                                                | State                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                                      |
-| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 5 — sign-in and sign-up by password, code, Google and Apple; recovery by code |
-| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                           |
+| Half                      | What it is                                                                                                                                                | State                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **Hydra** (Ory, v25.4.0)  | The protocol: `/oauth2/auth`, `/oauth2/token`, discovery, JWKS, revocation, the client registry and the consent store. Stores no users and no credentials | Part 2 — done                                                             |
+| **The login application** | The screens and the credentials: Hydra hands it every sign-in, sign-up and sign-out, and it answers through Hydra's admin API                             | Part 7 — sign-in, sign-up, recovery and sign-out; sessions end everywhere |
+| **The identity database** | uni-auth's own PostgreSQL: identities, identifiers, credentials, sessions and the auth journal. A product stores only the `sub`                           | Part 1 — schema done (`db/migrations/0001_identity.sql`)                  |
 
 The name is product-neutral on purpose. Products, brands and redirect URIs are client
 registrations; nothing in the code names a product.
@@ -44,15 +44,20 @@ Checks:
 
 ```bash
 npm run verify                        # typecheck, lint, the schema suite and the e2e suite against the real Hydra
-scripts/smoke.sh                      # Hydra on its own: keys, audiences, admin boundary, round trip
+scripts/smoke.sh                      # Hydra: keys, audiences, admin boundary, round trip (needs npm run dev)
 ```
 
-The e2e suite listens on :3100 itself, so stop `npm run dev` first.
+The e2e suite listens on :3100 itself, so stop `npm run dev` first. `scripts/smoke.sh` is the
+other way round: its round trip refreshes a token, and Hydra asks the login application first.
+
+A checkout from before part 7 needs a new secret and its clients re-registered, once:
+`scripts/dev-secrets.sh && docker compose up -d --wait && scripts/hydra-clients.sh`.
 
 ## Layout
 
 ```
-src/flows/                    login, consent, logout - Hydra's challenges, answered
+src/flows/                    login, consent, logout - Hydra's challenges, answered; its refresh hook
+src/sessions/                 ending sessions at Hydra, which sends back-channel logout
 src/hydra/                    the admin API client
 src/common/                   pages, the CSRF guard, the error filter
 src/identity/                 identifier parsing and the identity tables' statements
@@ -129,6 +134,15 @@ docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
   goes only to an address no identity holds verified - the database refuses it - and an address
   someone typed and never proved blocks nobody. uni-auth creates the identity only: a product
   creates its own account the first time it sees the `sub`.
+- **A session that ends, ends everywhere.** Signing out revokes the `auth_session` row and
+  journals it before Hydra is told; a password reset revokes every other session the same way
+  and then ends each at Hydra. Hydra then sends each client's back-channel logout - a signed
+  token naming the `sid` - which is how an API learns to refuse that session's access tokens at
+  once. And before every refresh Hydra asks the login application (`/hooks/refresh`, with a
+  shared secret), which refuses a revoked session or a suspended or closed identity: a refresh
+  token dies with its session instead of living out its ninety days. Code exchanges and
+  client-credentials tokens do not go through the hook, so they never depend on the login
+  application being up.
 - **A code is never logged in production.** `EMAIL_DELIVERY=log` and `WHATSAPP_DELIVERY=log` write
   codes to the log for local work and the tests, and the process refuses to start with either
   in production.

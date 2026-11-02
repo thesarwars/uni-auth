@@ -60,5 +60,11 @@ fi
 
 echo "$pass passed, $fail failed"
 echo
+# Hydra asks the login application before every refresh (hydra.yml refresh_token_hook), so the
+# round trip's refresh checks need it running.
+if ! curl -fsS -m 3 -o /dev/null http://127.0.0.1:3100/ready 2>/dev/null; then
+  echo "FAIL  the login application is not running on :3100 (npm run dev); the round trip refreshes through it"
+  exit 1
+fi
 node scripts/round-trip.mjs || fail=$((fail+1))
 [[ $fail == 0 ]]

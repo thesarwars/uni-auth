@@ -54,6 +54,11 @@ const Env = z.object({
 
   /** Signs the CSRF cookie. 32+ characters. */
   COOKIE_SECRET: z.string().min(32),
+  /**
+   * What Hydra sends as `Authorization: Bearer <secret>` when it calls the refresh hook
+   * (hydra.yml oauth2.refresh_token_hook). The same value is given to Hydra.
+   */
+  HYDRA_HOOK_SECRET: z.string().min(32),
 
   /**
    * The provider's name on the screens that are about the provider rather than a client:

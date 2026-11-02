@@ -21,6 +21,7 @@ export interface SessionState {
 export interface AuthEvent {
   kind:
     | 'sign_in'
+    | 'sign_out'
     | 'lockout'
     | 'password_reset'
     | 'credential_added'
@@ -190,6 +191,53 @@ export class IdentityRepository {
     });
   }
 
+  /**
+   * Ends one session, as the member signing out does. Returns the identity it belonged to, or
+   * null when there was no live session by that sid.
+   */
+  async endSession(
+    db: Db,
+    sid: string,
+    reason: 'sign_out',
+  ): Promise<{ id: string; identityId: string } | null> {
+    const row = await one<{ id: string; identity_id: string }>(
+      db,
+      `UPDATE auth_session SET revoked_at = now(), revoke_reason = $2
+        WHERE sid = $1 AND revoked_at IS NULL
+        RETURNING id, identity_id`,
+      [sid, reason],
+    );
+    return row ? { id: row.id, identityId: row.identity_id } : null;
+  }
+
+  /**
+   * The sids of an identity's sessions this transaction ended for `reason` - the ones a
+   * database function (password_reset_complete, say) revoked, to be ended at Hydra too.
+   */
+  async sessionsEndedNow(db: Db, identityId: string, reason: string): Promise<string[]> {
+    const res = await db.query<{ sid: string }>(
+      `SELECT sid FROM auth_session
+        WHERE identity_id = $1 AND revoke_reason = $2 AND revoked_at = now()`,
+      [identityId, reason],
+    );
+    return res.rows.map((r) => r.sid);
+  }
+
+  /**
+   * Whether a session may still be refreshed: live, and its identity active. null when uni-auth
+   * has no such session - one accepted through Hydra's admin API, not by this application.
+   */
+  async mayRefresh(sid: string): Promise<boolean | null> {
+    const row = await one<{ ok: boolean }>(
+      this.db.asDb(),
+      `SELECT (s.revoked_at IS NULL AND s.expires_at > now() AND i.status = 'active') AS ok
+         FROM auth_session s JOIN identity i ON i.id = s.identity_id
+        WHERE s.sid = $1`,
+      [sid],
+    );
+    return row ? row.ok : null;
+  }
+
   async markUsed(db: Db, credentialId: string): Promise<void> {
     await db.query('UPDATE credential SET last_used_at = now() WHERE id = $1', [credentialId]);
   }
@@ -210,12 +258,13 @@ export class IdentityRepository {
 
   /**
    * Sets the new password through a ticket opened in this same sign-in (its code's flow), and
-   * with it revokes the old password and every session. null: no such usable ticket here.
+   * with it revokes the old password and every session. `ended` names those sessions, to be
+   * ended at Hydra once this commits. null: no such usable ticket here.
    */
   async completeReset(
     db: Db,
     a: { ticketId: string; flowHash: Buffer; secretHash: Buffer },
-  ): Promise<{ identityId: string; credentialId: string } | null> {
+  ): Promise<{ identityId: string; credentialId: string; ended: string[] } | null> {
     const ticket = await one<{ identity_id: string }>(
       db,
       `SELECT pr.identity_id FROM password_reset pr
@@ -229,7 +278,8 @@ export class IdentityRepository {
       a.ticketId,
       a.secretHash,
     ]);
-    return { identityId: ticket.identity_id, credentialId: done!.id };
+    const ended = await this.sessionsEndedNow(db, ticket.identity_id, 'password_reset');
+    return { identityId: ticket.identity_id, credentialId: done!.id, ended };
   }
 
   /**
