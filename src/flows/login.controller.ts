@@ -171,7 +171,17 @@ export class LoginController {
     if (!id) {
       await this.identifierScreen(reply, challenge, request, {
         typed: form.identifier,
-        error: 'Enter an email address, or a phone number with its country code, like +44.',
+        error: phonesAccepted()
+          ? 'Enter an email address, or a phone number with its country code, like +44.'
+          : 'Enter an email address, like name@example.com.',
+      });
+      return;
+    }
+    if (id.kind === 'phone' && !phonesAccepted()) {
+      // No WhatsApp in this deployment: a phone number can neither sign up nor get a code.
+      await this.identifierScreen(reply, challenge, request, {
+        typed: form.identifier,
+        error: "Phone numbers can't be used here yet. Enter your email address.",
       });
       return;
     }
@@ -671,6 +681,7 @@ export class LoginController {
       {
         ...page(reply, challenge, request),
         create,
+        phones: phonesAccepted(),
         typed: state.typed ?? '',
         error: state.error ?? null,
         upstreams: this.upstream.enabled().map((p) => ({ id: p, name: providerName(p) })),
@@ -810,7 +821,9 @@ interface Ctx {
   seen: Seen;
 }
 
-/** What every sign-in screen carries: the challenge, a CSRF token, and who is asking. */
+/** Whether phone numbers are offered at all: not when WhatsApp delivery is off. */
+const phonesAccepted = (): boolean => env.WHATSAPP_DELIVERY !== 'off';
+
 /**
  * Whether the client asked to create an account: `prompt=registration`, Hydra's name for what
  * OpenID Connect "Initiating User Registration" calls `prompt=create`. Hydra v25 refuses
@@ -830,6 +843,7 @@ export function wantsCreate(request: LoginRequest): boolean {
   }
 }
 
+/** What every sign-in screen carries: the challenge, a CSRF token, and who is asking. */
 function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
   return {
     challenge,

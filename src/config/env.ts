@@ -142,8 +142,12 @@ const Env = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('uni-auth <no-reply@localhost>'),
 
-  /** WhatsApp delivery through Meta's Cloud API, as an approved AUTHENTICATION template. */
-  WHATSAPP_DELIVERY: z.enum(['meta', 'log']).default('log'),
+  /**
+   * WhatsApp delivery. meta sends codes through Meta's Cloud API, as an approved AUTHENTICATION
+   * template; log writes them to the log (never in
+   * production); off accepts no phone number at all, for a deployment without WhatsApp.
+   */
+  WHATSAPP_DELIVERY: z.enum(['meta', 'log', 'off']).default('log'),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_TEMPLATE_NAME: z.string().default('sign_in_code'),

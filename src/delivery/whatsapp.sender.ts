@@ -14,6 +14,8 @@ export class WhatsAppSender {
   constructor(private readonly outbox: Outbox) {}
 
   async sendCode(toE164: string, code: string): Promise<void> {
+    // The login screens refuse a phone number before a code is made (login.controller.ts).
+    if (env.WHATSAPP_DELIVERY === 'off') throw new Error('WHATSAPP_DELIVERY=off: no code is sent');
     if (env.WHATSAPP_DELIVERY === 'log') {
       this.logger.warn(`WHATSAPP_DELIVERY=log; code for ${toE164} is ${code}`);
       this.outbox.record({ channel: 'whatsapp', to: toE164, code });
