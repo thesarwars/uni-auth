@@ -812,17 +812,19 @@ interface Ctx {
 
 /** What every sign-in screen carries: the challenge, a CSRF token, and who is asking. */
 /**
- * Whether the client asked to create an account (`prompt=create`, OpenID Connect "Initiating
- * User Registration via OpenID Connect 1.0"). Hydra passes the value through untouched, so it
- * is read from the authorize URL Hydra holds for this challenge, never from anything the
- * browser posts. It changes what the screens say, not what they allow: an address that already
- * has an account is still signed in to it, and one that has none is offered an account as ever.
+ * Whether the client asked to create an account: `prompt=registration`, Hydra's name for what
+ * OpenID Connect "Initiating User Registration" calls `prompt=create`. Hydra v25 refuses
+ * `create` (when it issues the code, after the sign-in), so `registration` is the one a client
+ * sends. Hydra passes it through, so it is read from the authorize URL Hydra holds for this
+ * challenge, never from anything the browser posts. It changes what the screens say, not what
+ * they allow: an address that already has an account is still signed in to it, and one that
+ * has none is offered an account as ever.
  */
 export function wantsCreate(request: LoginRequest): boolean {
   if (!request.request_url) return false;
   try {
     const prompt = new URL(request.request_url).searchParams.get('prompt') ?? '';
-    return prompt.split(' ').includes('create');
+    return prompt.split(' ').includes('registration');
   } catch {
     return false;
   }

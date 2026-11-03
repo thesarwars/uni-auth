@@ -19,9 +19,9 @@ import {
 import { closeMembers, createMember, type Member } from '../support/members';
 
 /**
- * `prompt=create` (OpenID Connect "Initiating User Registration via OpenID Connect 1.0"): a
- * client's "Create account" button opens uni-auth on the create-account wording. It changes
- * what the screens say, never what they allow.
+ * `prompt=registration`, Hydra's spelling of OpenID Connect's `prompt=create`: a client's
+ * "Create account" button opens uni-auth on the create-account wording. It changes what the
+ * screens say, never what they allow.
  */
 
 let app: NestFastifyApplication;
@@ -58,13 +58,21 @@ async function post(f: Flow, fields: Record<string, string>): Promise<Hop> {
 
 const h1 = (page: Hop) => /<h1>([^<]*)<\/h1>/.exec(page.html)?.[1];
 
-describe('prompt=create', () => {
+describe('prompt=registration', () => {
   it('opens on the create-account wording', async () => {
-    const f = await start('create');
+    const f = await start('registration');
     expect(f.page.status).toBe(200);
     expect(h1(f.page)).toBe('Create your account');
     expect(f.page.html).toContain("send it a code to confirm it's yours");
     expect(f.page.html).toContain('<title>Create your account');
+  });
+
+  it("is Hydra's spelling: Hydra v25 refuses prompt=create once the sign-in is done", async () => {
+    const f = await start('create');
+    await post(f, { action: 'identify', identifier: member.email });
+    await post(f, { action: 'password', password: member.password });
+    const { url } = await f.b.follow(f.page.location!);
+    expect(new URL(url).searchParams.get('error_description')).toMatch(/'\[create\]' for prompt/);
   });
 
   it('leaves an ordinary sign-in as it was', async () => {
@@ -73,11 +81,11 @@ describe('prompt=create', () => {
   });
 
   it('is found among several prompt values', async () => {
-    expect(h1((await start('login create')).page)).toBe('Create your account');
+    expect(h1((await start('login registration')).page)).toBe('Create your account');
   });
 
   it('creates the account for a new address, with its code, and signs in', async () => {
-    const f = await start('create');
+    const f = await start('registration');
     const email = `new-${randomBytes(6).toString('hex')}@example.com`;
     await post(f, { action: 'identify', identifier: email });
     expect(h1(f.page)).toBe('Create your account');
@@ -92,7 +100,7 @@ describe('prompt=create', () => {
   });
 
   it('signs an address that already has an account in to it, and says so', async () => {
-    const f = await start('create');
+    const f = await start('registration');
     await post(f, { action: 'identify', identifier: member.email });
     expect(h1(f.page)).toBe('Enter your password');
     expect(f.page.html).toContain(`There&#39;s already an account for ${member.email}`);
@@ -108,7 +116,7 @@ describe('prompt=create', () => {
 
   it('cannot be switched on by the browser', async () => {
     const f = await start();
-    await post(f, { action: 'identify', identifier: 'x', prompt: 'create', create: 'true' });
+    await post(f, { action: 'identify', identifier: 'x', prompt: 'registration', create: 'true' });
     expect(h1(f.page)).toBe('Sign in to continue to Go Style Network');
   });
 });
@@ -116,9 +124,10 @@ describe('prompt=create', () => {
 describe('wantsCreate', () => {
   const req = (request_url: string | null) => ({ request_url }) as unknown as LoginRequest;
   it.each([
-    ['https://a/oauth2/auth?prompt=create', true],
-    ['https://a/oauth2/auth?prompt=login%20create', true],
-    ['https://a/oauth2/auth?prompt=created', false],
+    ['https://a/oauth2/auth?prompt=registration', true],
+    ['https://a/oauth2/auth?prompt=login%20registration', true],
+    ['https://a/oauth2/auth?prompt=create', false],
+    ['https://a/oauth2/auth?prompt=registrations', false],
     ['https://a/oauth2/auth?prompt=login', false],
     ['https://a/oauth2/auth', false],
     ['not a url', false],
