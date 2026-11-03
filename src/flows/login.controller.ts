@@ -268,7 +268,11 @@ export class LoginController {
       return;
     }
     if (found.credentials.includes('password')) {
-      await this.passwordScreen(ctx);
+      await this.passwordScreen(ctx, {
+        notice: wantsCreate(ctx.request)
+          ? `There's already an account for ${ctx.id.value}. Sign in to it instead.`
+          : undefined,
+      });
       return;
     }
     if (found.credentials.length > 0) {
@@ -659,12 +663,14 @@ export class LoginController {
     request: LoginRequest,
     state: { typed?: string; error?: string } = {},
   ): FastifyReply {
+    const create = wantsCreate(request);
     return render(
       reply,
       'identifier',
-      `Sign in to continue to ${clientName(request.client)}`,
+      create ? 'Create your account' : `Sign in to continue to ${clientName(request.client)}`,
       {
         ...page(reply, challenge, request),
+        create,
         typed: state.typed ?? '',
         error: state.error ?? null,
         upstreams: this.upstream.enabled().map((p) => ({ id: p, name: providerName(p) })),
@@ -675,7 +681,7 @@ export class LoginController {
 
   private passwordScreen(
     ctx: Ctx,
-    state: { error?: string; remaining?: number | null } = {},
+    state: { error?: string; remaining?: number | null; notice?: string } = {},
   ): FastifyReply {
     return render(
       ctx.reply,
@@ -687,6 +693,7 @@ export class LoginController {
         codeChannel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
         error: state.error ?? null,
         remaining: state.remaining ?? null,
+        notice: state.notice ?? null,
       },
       state.error ? 422 : 200,
     );
@@ -804,6 +811,23 @@ interface Ctx {
 }
 
 /** What every sign-in screen carries: the challenge, a CSRF token, and who is asking. */
+/**
+ * Whether the client asked to create an account (`prompt=create`, OpenID Connect "Initiating
+ * User Registration via OpenID Connect 1.0"). Hydra passes the value through untouched, so it
+ * is read from the authorize URL Hydra holds for this challenge, never from anything the
+ * browser posts. It changes what the screens say, not what they allow: an address that already
+ * has an account is still signed in to it, and one that has none is offered an account as ever.
+ */
+export function wantsCreate(request: LoginRequest): boolean {
+  if (!request.request_url) return false;
+  try {
+    const prompt = new URL(request.request_url).searchParams.get('prompt') ?? '';
+    return prompt.split(' ').includes('create');
+  } catch {
+    return false;
+  }
+}
+
 function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
   return {
     challenge,

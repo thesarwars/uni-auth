@@ -1,6 +1,11 @@
 <% layout('./layout') %>
 <%~ include('./_header', it) %>
+<% if (it.create) { %>
+<h1>Create your account</h1>
+<p class="hint">Enter the email or phone number you want to use. We'll send it a code to confirm it's yours, then <%= it.clientName %> signs you in.</p>
+<% } else { %>
 <h1>Sign in to continue to <%= it.clientName %></h1>
+<% } %>
 <form method="post" action="/login" novalidate>
   <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
   <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
