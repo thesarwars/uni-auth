@@ -61,6 +61,22 @@ const Env = z.object({
   HYDRA_HOOK_SECRET: z.string().min(32),
 
   /**
+   * The uni-auth-service client's secret (deploy/hydra/clients/uni-auth-service.json): the
+   * client-credentials grant this application uses to call a product's internal API.
+   */
+  UNI_AUTH_SERVICE_SECRET: z.string().min(32),
+
+  /**
+   * Where an identity notice is delivered - "this identity closed", "this identity was erased" -
+   * with a uni-auth-service token for IDENTITY_NOTICE_AUDIENCE (auth-plan.md section 12.2, part
+   * 7). One product for now: GSN's Auth service.
+   */
+  IDENTITY_NOTICE_URL: z.string().url(),
+  IDENTITY_NOTICE_AUDIENCE: z.string().min(1).default('gsn-api-internal'),
+  /** How often undelivered notices are looked for. */
+  IDENTITY_NOTICE_POLL_MS: z.coerce.number().int().min(100).default(5000),
+
+  /**
    * The provider's name on the screens that are about the provider rather than a client:
    * "Sign out of <name>?" (auth-plan.md section 7.2). The brand is OQ-ONB-10's answer.
    */

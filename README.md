@@ -58,6 +58,7 @@ A checkout from before part 7 needs a new secret and its clients re-registered, 
 ```
 src/flows/                    login, consent, logout - Hydra's challenges, answered; its refresh hook
 src/sessions/                 ending sessions at Hydra, which sends back-channel logout
+src/lifecycle/                identity notices: telling a product an identity closed or was erased
 src/hydra/                    the admin API client
 src/common/                   pages, the CSRF guard, the error filter
 src/identity/                 identifier parsing and the identity tables' statements
@@ -143,6 +144,12 @@ docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
   token dies with its session instead of living out its ninety days. Code exchanges and
   client-credentials tokens do not go through the hook, so they never depend on the login
   application being up.
+- **A closed identity closes everywhere.** Closing or erasing an identity writes an
+  `identity_notice` in the same transaction - a trigger, so it holds whoever closes it. The login
+  application then ends the identity's sessions at Hydra (each `sid`, for the back-channel
+  logout, then everything Hydra holds for the subject, so no refresh token outlives it) and posts
+  `{ sub, event, occurred_at }` to `IDENTITY_NOTICE_URL` with a `uni-auth-service` token,
+  retrying with backoff until the product answers 2xx. GSN closes the account behind the `sub`.
 - **A code is never logged in production.** `EMAIL_DELIVERY=log` and `WHATSAPP_DELIVERY=log` write
   codes to the log for local work and the tests, and the process refuses to start with either
   in production.

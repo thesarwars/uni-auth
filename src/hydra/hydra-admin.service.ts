@@ -112,6 +112,19 @@ export class HydraAdmin {
     await this.call('DELETE', `/admin/oauth2/auth/sessions/login?sid=${enc(sid)}`);
   }
 
+  /**
+   * Ends everything Hydra holds for a subject: its consent sessions, and with them every access
+   * and refresh token issued under them, and its login sessions. Revoking by subject sends no
+   * back-channel logout; revokeLoginSession does, one sid at a time.
+   */
+  async revokeSubject(subject: string): Promise<void> {
+    const s = enc(subject);
+    await this.call('DELETE', `/admin/oauth2/auth/sessions/consent?subject=${s}&all=true`);
+    await this.call('DELETE', `/admin/oauth2/auth/sessions/login?subject=${s}`).catch((err) => {
+      if (!(err instanceof UnknownChallenge)) throw err; // no login session left
+    });
+  }
+
   getConsent(challenge: string): Promise<ConsentRequest> {
     return this.get('consent', challenge, ConsentRequest);
   }

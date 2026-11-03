@@ -30,6 +30,10 @@ const defaults: Record<string, string> = {
   APPLE_KEY_ID: 'TESTKEY001',
   APPLE_PRIVATE_KEY: appleKey,
   APPLE_ISSUER: 'http://localhost:4999/apple',
+  // Identity notices go to a listener in tests/e2e/identity-notices.e2e.test.ts, which drains
+  // them itself rather than waiting for the poll.
+  IDENTITY_NOTICE_URL: 'http://127.0.0.1:4780/identity-notices',
+  IDENTITY_NOTICE_POLL_MS: '3600000',
   // The identity database as the application's own role (scripts/db-dev-roles.mjs).
   DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };

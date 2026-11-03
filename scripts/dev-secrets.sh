@@ -18,6 +18,8 @@ add COOKIE_SECRET "$(rand)"
 add HYDRA_ADMIN_URL "http://127.0.0.1:4445"
 add HYDRA_PUBLIC_URL "http://localhost:4444"
 add REDIS_URL "redis://127.0.0.1:6380"
+# GSN's Auth service on the host (npm run dev:auth in the api repository).
+add IDENTITY_NOTICE_URL "http://localhost:4041/v1/uni-auth/identity-notices"
 add IDENTITY_DB_PASSWORD "$(rand)"
 # The owner applies migrations; the application connects as uni_auth_api (scripts/db-dev-roles.mjs).
 pw=$(grep '^IDENTITY_DB_PASSWORD=' .env | cut -d= -f2)

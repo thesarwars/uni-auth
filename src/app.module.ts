@@ -18,6 +18,8 @@ import { Outbox } from './delivery/outbox';
 import { WhatsAppSender } from './delivery/whatsapp.sender';
 import { HydraAdmin } from './hydra/hydra-admin.service';
 import { IdentityRepository } from './identity/identity.repository';
+import { IdentityNotices } from './lifecycle/identity-notices';
+import { ServiceToken } from './lifecycle/service-token';
 import { SignupStore } from './identity/signup.store';
 import { RedisService } from './redis/redis.service';
 import { Throttle } from './throttle/throttle.service';
@@ -46,6 +48,8 @@ import { Upstream } from './upstream/upstream.service';
     SignIn,
     SignupStore,
     SessionEnder,
+    ServiceToken,
+    IdentityNotices,
     Upstream,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
