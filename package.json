@@ -18,7 +18,8 @@
     "verify": "npm run typecheck && npm run lint && npm test",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:dev-roles": "node scripts/db-dev-roles.mjs",
-    "dev:member": "node scripts/dev-member.mjs"
+    "dev:member": "node scripts/dev-member.mjs",
+    "load:sign-in": "tsx --env-file=.env tests/load/sign-in.load.ts"
   },
   "comments": {
     "stack": "The GSN API's stack on purpose (auth-plan.md section 12.4): Nest 11 on Fastify, Zod configuration, Vitest. The credential services move here from the API in part 4 with their tests, without a rewrite.",
@@ -51,11 +52,15 @@
     "@nestjs/schematics": "^11.1.0",
     "@nestjs/testing": "^11.2.8",
     "@swc/core": "^1.16.20",
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^22.20.5",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
+    "axe-core": "^4.14.0",
     "eslint": "^9.39.5",
+    "jsdom": "^25.0.1",
     "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.1",
     "unplugin-swc": "^2.0.0",

@@ -71,7 +71,10 @@ services:
     # --dev permits the http:// issuer on localhost. Never in a deployment.
     command: serve all --dev --sqa-opt-out --config /etc/hydra/hydra.yml
     environment:
-      DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@hydra-db:5432/hydra?sslmode=disable
+      # The pool is sized, not left at Hydra's default of two per CPU: a code exchange holds a
+      # transaction and takes a second connection for the signing key, so a small pool deadlocks
+      # under concurrent sign-ins (found by tests/load/sign-in.load.ts; auth-plan.md part 8).
+      DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@hydra-db:5432/hydra?sslmode=disable&max_conns=40&max_idle_conns=10&max_conn_lifetime=30m
       SECRETS_SYSTEM: ${HYDRA_SECRETS_SYSTEM:?run scripts/dev-secrets.sh}
       SECRETS_COOKIE: ${HYDRA_SECRETS_COOKIE:?run scripts/dev-secrets.sh}
       # How Hydra proves itself to the login application's refresh hook (hydra.yml).

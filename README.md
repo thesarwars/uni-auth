@@ -89,7 +89,8 @@ docker-compose.yml            Hydra, its PostgreSQL, and the identity PostgreSQL
 - **PKCE is required for public clients.** Hydra enforces it when it builds the response, after
   login and consent, so a missing challenge is refused at the callback, not on the first hop.
 - **Key rotation is additive.** `scripts/hydra-keys.sh --rotate` adds a signing key; the old one
-  stays in the JWKS until every token it signed has expired (AU-5).
+  stays in the JWKS until every token it signed has expired, and `--retire` refuses it before
+  then (AU-5). The runbook, including a compromised key: [docs/key-rotation.md](docs/key-rotation.md).
 - **Every screen is server-rendered and works without JavaScript.** Accepting a sign-in calls
   the admin API, which only this server may reach.
 - **Every form carries a CSRF token** checked against a signed cookie, and every page is
