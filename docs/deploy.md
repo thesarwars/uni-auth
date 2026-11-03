@@ -4,7 +4,7 @@ Everything runs from the repository with one command. Hydra, its database, the i
 database, Redis and the login application are all containers. nginx on the host terminates TLS.
 
 ```
-                 https://auth.gostyle.uk  (nginx, TLS)
+                 https://uni-auth.gostyle.uk  (nginx, TLS)
                  ├── /oauth2/*, /.well-known/*, /userinfo  ->  127.0.0.1:4444  Hydra (public)
                  ├── /hooks/*                              ->  404
                  └── everything else                       ->  127.0.0.1:3100  login application
@@ -15,11 +15,11 @@ setup job reach it, inside the compose network (AU-2).
 
 ## The hosts
 
-| Setting          | Example                         | What it is                                   |
-| ---------------- | ------------------------------- | -------------------------------------------- |
-| `UNI_AUTH_HOST`  | `auth.gostyle.uk`               | uni-auth itself: the issuer and the screens. |
-| `GSN_WEB_ORIGIN` | `https://uni-auth.gostyle.uk`   | The GSN web app (a client).                  |
-| `GSN_API_URL`    | `https://uniauthapi.gostyle.uk` | The GSN api, which trusts uni-auth's tokens. |
+| Setting          | Example                      | What it is                                   |
+| ---------------- | ---------------------------- | -------------------------------------------- |
+| `UNI_AUTH_HOST`  | `uni-auth.gostyle.uk`        | uni-auth itself: the issuer and the screens. |
+| `GSN_WEB_ORIGIN` | `https://gsn.gostyle.uk`     | The GSN web app (a client).                  |
+| `GSN_API_URL`    | `https://gsn-api.gostyle.uk` | The GSN api, which trusts uni-auth's tokens. |
 
 uni-auth needs its own host. That host is the token issuer, so it must not move once members
 have signed in, because every token and session is tied to it.
@@ -49,7 +49,7 @@ have signed in, because every token and session is tied to it.
 4. **nginx.**
    ```sh
    sudo cp deploy/nginx/uni-auth.conf /etc/nginx/sites-available/uni-auth.conf
-   sudo sed -i 's/auth.gostyle.uk/<UNI_AUTH_HOST>/g' /etc/nginx/sites-available/uni-auth.conf
+   sudo sed -i 's/uni-auth.gostyle.uk/<UNI_AUTH_HOST>/g' /etc/nginx/sites-available/uni-auth.conf
    sudo ln -s /etc/nginx/sites-available/uni-auth.conf /etc/nginx/sites-enabled/
    sudo nginx -t && sudo systemctl reload nginx
    sudo certbot --nginx -d <UNI_AUTH_HOST>
