@@ -38,11 +38,21 @@ const defaults: Record<string, string> = {
   DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };
 
+// Never overridable, by the shell or by .env: the suite reads codes from the outbox, and must
+// never send a real email or WhatsApp message (a developer's .env may well say smtp).
+const fixed: Record<string, string> = {
+  EMAIL_DELIVERY: 'log',
+  WHATSAPP_DELIVERY: 'log',
+};
+
 export default defineConfig({
   plugins: [swc.vite({ module: { type: 'es6' } })],
   test: {
     include: ['tests/**/*.test.ts'],
-    env: Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, process.env[k] ?? v])),
+    env: {
+      ...Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, process.env[k] ?? v])),
+      ...fixed,
+    },
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,

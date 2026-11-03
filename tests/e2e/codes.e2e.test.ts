@@ -261,8 +261,12 @@ describe('recovery', () => {
     const weak = await post(f, { action: 'new_password', password: 'short', confirm: 'short' });
     expect(weak.status).toBe(422);
     expect(weak.html).toContain('does not meet every rule');
-    expect(weak.html).toMatch(/class="unmet">At least 8 characters/);
-    expect(weak.html).toMatch(/class="unmet">One uppercase letter/);
+    expect(weak.html).toMatch(
+      /class="unmet"><span class="tick" aria-hidden="true"><\/span>At least 8 characters<span class="sr state"> \(not yet\)/,
+    );
+    expect(weak.html).toMatch(
+      /class="unmet"><span class="tick" aria-hidden="true"><\/span>One uppercase letter<span class="sr state"> \(not yet\)/,
+    );
 
     const mismatch = await post(f, {
       action: 'new_password',

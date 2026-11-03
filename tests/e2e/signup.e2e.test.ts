@@ -92,7 +92,9 @@ describe('create an account with an email or phone', () => {
 
     const weak = await post(f, { action: 'signup', password: 'weak', confirm: 'weak' });
     expect(weak.status).toBe(422);
-    expect(weak.html).toMatch(/class="unmet">At least 8 characters/);
+    expect(weak.html).toMatch(
+      /class="unmet"><span class="tick" aria-hidden="true"><\/span>At least 8 characters<span class="sr state"> \(not yet\)/,
+    );
     const mismatch = await post(f, {
       action: 'signup',
       password: PASSWORD,
