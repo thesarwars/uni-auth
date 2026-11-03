@@ -31,7 +31,9 @@ export async function createApp(
         'default-src': ["'self'"],
         'img-src': ["'self'", 'https:', 'data:'],
         'style-src': ["'self'", "'unsafe-inline'"],
-        'script-src': ["'none'"],
+        // Only this origin's own files: public/password.js, served by AssetsController. No
+        // inline script and no other origin, so an injected <script> still never runs.
+        'script-src': ["'self'"],
         'base-uri': ["'none'"],
         'object-src': ["'none'"],
         // The login page may not be framed by any site, ours included: a member must see the

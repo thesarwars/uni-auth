@@ -23,6 +23,10 @@ export interface PolicyRule {
   rule: 'min_length' | 'uppercase' | 'digit_or_symbol';
   label: string;
   met: boolean;
+  /** The rule's parameter, where it has one: the length for min_length. The screens hand it to
+   * public/password.js, which re-checks as the member types; the server's check is the one that
+   * counts. */
+  value?: number;
 }
 
 /**
@@ -78,6 +82,7 @@ export function checkPassword(policy: PasswordPolicy, password: string): PolicyR
       rule: 'min_length',
       label: `At least ${policy.min_length} characters`,
       met: [...password].length >= policy.min_length,
+      value: policy.min_length,
     },
   ];
   if (policy.require_uppercase) {

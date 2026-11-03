@@ -192,6 +192,10 @@ describe('colour contrast', () => {
     ['field', 'card', 3], // text inputs' and secondary buttons' edges
     ['danger', 'card', 3], // an invalid field's edge
     ['ink', 'card', 3], // the focus ring
+    ['ok', 'card', 4.5], // a met rule's tick, Good and Strong
+    ['warn', 'card', 4.5], // Fair
+    ['card', 'ok', 3], // the tick drawn on a met rule's circle
+    ['ok', 'line', 3], // a filled strength segment against an empty one
   ];
   for (const [scheme, t] of [
     ['light', light],

@@ -9,6 +9,7 @@ import { HooksController } from './flows/hooks.controller';
 import { SessionEnder } from './sessions/session-ender';
 import { SignIn } from './flows/sign-in.service';
 import { UpstreamController } from './flows/upstream.controller';
+import { AssetsController } from './flows/assets.controller';
 import { SystemController } from './flows/system.controller';
 import { OtpService } from './credentials/otp.service';
 import { PasswordService } from './credentials/password.service';
@@ -29,6 +30,7 @@ import { Upstream } from './upstream/upstream.service';
   controllers: [
     LoginController,
     UpstreamController,
+    AssetsController,
     ConsentController,
     LogoutController,
     HooksController,

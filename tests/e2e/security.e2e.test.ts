@@ -232,12 +232,36 @@ describe('every page refuses framing and keeps its URL to itself', () => {
     it(name, async () => {
       const h = await get();
       expect(h.get('content-security-policy')).toContain("frame-ancestors 'none'");
-      expect(h.get('content-security-policy')).toContain("script-src 'none'");
+      // Scripts from this origin only: public/password.js. No inline script, no other origin.
+      expect(h.get('content-security-policy')).toContain("script-src 'self'");
+      expect(h.get('content-security-policy')).not.toMatch(/script-src[^;]*(unsafe|https?:|\*)/);
       expect(h.get('x-frame-options')).toBe('DENY');
       expect(h.get('referrer-policy')).toBe('no-referrer');
       expect(h.get('x-content-type-options')).toBe('nosniff');
     });
   }
+});
+
+describe('the only script is our own file', () => {
+  const views = join(__dirname, '..', '..', 'views');
+  it('no view holds an inline script, an event handler attribute or another script', () => {
+    const scripts: string[] = [];
+    for (const file of readdirSync(views).filter((f) => f.endsWith('.eta'))) {
+      const source = readFileSync(join(views, file), 'utf8');
+      expect(source, file).not.toMatch(/\son[a-z]+\s*=/i);
+      expect(source, file).not.toMatch(/javascript:/i);
+      for (const [tag] of source.matchAll(/<script\b[^>]*>/g)) scripts.push(`${file}: ${tag}`);
+    }
+    expect(scripts).toEqual(['layout.eta: <script src="/assets/password.js" defer>']);
+  });
+
+  it('serves it as JavaScript, with nosniff', async () => {
+    const res = await fetch(`${APP}/assets/password.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/^text\/javascript/);
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await res.text()).toContain("'use strict'");
+  });
 });
 
 describe('every form carries the CSRF token', () => {

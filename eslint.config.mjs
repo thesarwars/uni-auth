@@ -1,5 +1,6 @@
 // @ts-check
 import eslint from '@eslint/js';
+import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
@@ -29,6 +30,12 @@ export default tseslint.config(
       // Nest controllers and lifecycle hooks are legitimately async without awaiting.
       '@typescript-eslint/require-await': 'off',
     },
+  },
+
+  // The one script the screens load runs in the browser, as a classic script (views/layout.eta).
+  {
+    files: ['public/**/*.js'],
+    languageOptions: { sourceType: 'script', globals: globals.browser },
   },
 
   // Tests read untyped JSON response bodies; asserting on them is the point.
