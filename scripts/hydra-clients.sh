@@ -2,13 +2,23 @@
 # Registers every client in deploy/hydra/clients/ - the only way a client comes to exist:
 # dynamic registration is off (hydra.yml). Idempotent: an existing client is replaced with
 # the file's definition, so the files are the registry of record.
+#
+# CLIENTS_DIR picks another set: a deployment's are deploy/hydra/clients.prod/, whose
+# ${GSN_WEB_ORIGIN} and ${GSN_API_URL} are filled in from the environment (envsubst).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ADMIN="${HYDRA_ADMIN_URL:-http://127.0.0.1:4445}"
 set -a; [[ -f .env ]] && source .env; set +a
 
-for file in deploy/hydra/clients/*.json; do
-  body=$(cat "$file")
+DIR="${CLIENTS_DIR:-deploy/hydra/clients}"
+
+for file in "$DIR"/*.json; do
+  # Only the named variables: a stray $ in a definition stays as written.
+  body=$(envsubst '${GSN_WEB_ORIGIN} ${GSN_API_URL}' <"$file")
+  if grep -q '\${' <<<"$body"; then
+    echo "$file: unfilled placeholder (set GSN_WEB_ORIGIN and GSN_API_URL)" >&2
+    exit 1
+  fi
   id=$(jq -r .client_id <<<"$body")
   method=$(jq -r .token_endpoint_auth_method <<<"$body")
   if [[ "$method" != "none" ]]; then

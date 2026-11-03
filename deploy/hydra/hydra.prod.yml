@@ -1,0 +1,67 @@
+# Ory Hydra for a deployment (docker-compose.prod.yml). The same settings as hydra.yml, without
+# --dev: an https issuer, secure cookies. Everything that names a host comes from the
+# environment, set by docker-compose.prod.yml from .env:
+#   URLS_SELF_ISSUER, URLS_LOGIN, URLS_CONSENT, URLS_LOGOUT, URLS_ERROR,
+#   URLS_POST_LOGOUT_REDIRECT, SERVE_PUBLIC_CORS_ALLOWED_ORIGINS, OAUTH2_REFRESH_TOKEN_HOOK_URL.
+# Secrets (DSN, SECRETS_SYSTEM, SECRETS_COOKIE, the hook's Authorization value) likewise.
+
+serve:
+  public:
+    port: 4444
+    cors:
+      enabled: true
+  admin:
+    # Reached only inside the compose network, by the login application and the setup job.
+    # Never published on the host, never behind nginx (AU-2).
+    port: 4445
+  cookies:
+    same_site_mode: Lax
+  tls:
+    # nginx on the host terminates TLS and sends X-Forwarded-Proto: https. Its requests arrive
+    # from the Docker bridge, and the ports are published on 127.0.0.1 only, so these private
+    # ranges are reachable by nothing but the host's own proxy and the compose network.
+    allow_termination_from:
+      - 127.0.0.1/32
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+
+strategies:
+  access_token: jwt
+  scope: exact
+
+ttl:
+  access_token: 15m
+  refresh_token: 2160h
+  id_token: 15m
+  auth_code: 5m
+  login_consent_request: 30m
+
+oauth2:
+  pkce:
+    enforced_for_public_clients: true
+  allowed_top_level_claims:
+    - sid
+    - acr
+    - amr
+    - auth_time
+  mirror_top_level_claims: false
+  expose_internal_errors: false
+  refresh_token_hook:
+    auth:
+      type: api_key
+      config:
+        in: header
+        name: Authorization
+
+oidc:
+  subject_identifiers:
+    supported_types:
+      - public
+  dynamic_client_registration:
+    enabled: false
+
+log:
+  level: info
+  format: json
+  leak_sensitive_values: false

@@ -1,0 +1,163 @@
+# uni-auth, deployed: everything in containers, started by one command (docs/deploy.md).
+#
+#   cp .env.prod.example .env && scripts/prod-secrets.sh    once: hosts, SMTP, random secrets
+#   docker compose up --build -d                            .env sets COMPOSE_FILE to this file
+#
+# Order: the databases -> Hydra's migrations -> Hydra -> setup (identity migrations, the
+# login role, signing keys, clients; idempotent, every start) -> the login application.
+#
+# Published on 127.0.0.1 only, for nginx on the host, which terminates TLS for UNI_AUTH_HOST:
+#   127.0.0.1:${HYDRA_PORT:-4444}  Hydra public (/oauth2/*, /.well-known/*, /userinfo, /health/*)
+#   127.0.0.1:${LOGIN_PORT:-3100}  the login application (everything else)
+# Hydra's admin API (4445) is published on no interface (AU-2).
+
+name: uni-auth
+
+x-hydra-env: &hydra-env
+  DSN: postgres://hydra:${HYDRA_DB_PASSWORD:?}@hydra-db:5432/hydra?sslmode=disable&max_conns=40&max_idle_conns=10&max_conn_lifetime=30m
+
+services:
+  identity-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uni_auth_owner
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?run scripts/prod-secrets.sh}
+      POSTGRES_DB: identity
+    volumes:
+      - identity-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U uni_auth_owner -d identity']
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7.4
+    restart: unless-stopped
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      retries: 30
+
+  hydra-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hydra
+      POSTGRES_PASSWORD: ${HYDRA_DB_PASSWORD:?run scripts/prod-secrets.sh}
+      POSTGRES_DB: hydra
+    volumes:
+      - hydra-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hydra -d hydra']
+      interval: 2s
+      retries: 30
+
+  hydra-migrate:
+    image: oryd/hydra:v25.4.0
+    command: migrate sql up -e --yes
+    environment: *hydra-env
+    depends_on:
+      hydra-db: { condition: service_healthy }
+    restart: 'no'
+
+  hydra:
+    image: oryd/hydra:v25.4.0
+    restart: unless-stopped
+    # No --dev: the issuer is https, cookies are Secure, and plain-http requests are accepted
+    # only from the TLS terminator (hydra.prod.yml serve.tls.allow_termination_from).
+    command: serve all --sqa-opt-out --config /etc/hydra/hydra.yml
+    environment:
+      <<: *hydra-env
+      SECRETS_SYSTEM: ${HYDRA_SECRETS_SYSTEM:?run scripts/prod-secrets.sh}
+      SECRETS_COOKIE: ${HYDRA_SECRETS_COOKIE:?run scripts/prod-secrets.sh}
+      URLS_SELF_ISSUER: https://${UNI_AUTH_HOST:?set UNI_AUTH_HOST in .env}
+      URLS_LOGIN: https://${UNI_AUTH_HOST}/login
+      URLS_CONSENT: https://${UNI_AUTH_HOST}/consent
+      URLS_LOGOUT: https://${UNI_AUTH_HOST}/logout
+      URLS_ERROR: https://${UNI_AUTH_HOST}/error
+      URLS_POST_LOGOUT_REDIRECT: https://${UNI_AUTH_HOST}/signed-out
+      SERVE_PUBLIC_CORS_ALLOWED_ORIGINS: ${GSN_WEB_ORIGIN:?set GSN_WEB_ORIGIN in .env}
+      # Hydra calls the hook inside the compose network, never through nginx: /hooks/ is not
+      # served publicly.
+      OAUTH2_REFRESH_TOKEN_HOOK_URL: http://login:3100/hooks/refresh
+      OAUTH2_REFRESH_TOKEN_HOOK_AUTH_CONFIG_VALUE: Bearer ${HYDRA_HOOK_SECRET:?run scripts/prod-secrets.sh}
+    volumes:
+      - ./deploy/hydra/hydra.prod.yml:/etc/hydra/hydra.yml:ro
+    ports:
+      - '127.0.0.1:${HYDRA_PORT:-4444}:4444'
+    depends_on:
+      hydra-migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:4444/health/ready']
+      interval: 5s
+      retries: 20
+
+  # One-time work, safe to repeat: runs on every `up` and exits.
+  setup:
+    # The login service's image (built once, by `login`).
+    image: uni-auth-login:latest
+    pull_policy: never
+    command: ['bash', 'scripts/deploy-setup.sh']
+    environment:
+      DATABASE_OWNER_URL: postgres://uni_auth_owner:${IDENTITY_DB_PASSWORD}@identity-db:5432/identity
+      UNI_AUTH_DB_PASSWORD: ${UNI_AUTH_DB_PASSWORD:?run scripts/prod-secrets.sh}
+      HYDRA_ADMIN_URL: http://hydra:4445
+      CLIENTS_DIR: deploy/hydra/clients.prod
+      GSN_WEB_ORIGIN: ${GSN_WEB_ORIGIN}
+      GSN_API_URL: ${GSN_API_URL:?set GSN_API_URL in .env}
+      UNI_AUTH_SERVICE_SECRET: ${UNI_AUTH_SERVICE_SECRET:?run scripts/prod-secrets.sh}
+    depends_on:
+      identity-db: { condition: service_healthy }
+      hydra: { condition: service_healthy }
+    restart: 'no'
+
+  login:
+    build: .
+    image: uni-auth-login:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      HYDRA_ADMIN_URL: http://hydra:4445
+      HYDRA_PUBLIC_URL: https://${UNI_AUTH_HOST}
+      LOGIN_PUBLIC_URL: https://${UNI_AUTH_HOST}
+      DATABASE_URL: postgres://uni_auth_api:${UNI_AUTH_DB_PASSWORD}@identity-db:5432/identity
+      REDIS_URL: redis://redis:6379
+      # nginx reaches the published port through this network's gateway.
+      TRUSTED_PROXIES: ${UNI_AUTH_SUBNET:-172.30.40.0/24}
+      COOKIE_SECRET: ${COOKIE_SECRET:?run scripts/prod-secrets.sh}
+      HYDRA_HOOK_SECRET: ${HYDRA_HOOK_SECRET}
+      UNI_AUTH_SERVICE_SECRET: ${UNI_AUTH_SERVICE_SECRET}
+      IDENTITY_NOTICE_URL: ${GSN_API_URL}/v1/uni-auth/identity-notices
+      PROVIDER_NAME: ${PROVIDER_NAME:-GSN}
+      EMAIL_DELIVERY: smtp
+      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM in .env}
+      WHATSAPP_DELIVERY: ${WHATSAPP_DELIVERY:-off}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - '127.0.0.1:${LOGIN_PORT:-3100}:3100'
+    depends_on:
+      redis: { condition: service_healthy }
+      setup: { condition: service_completed_successfully }
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3100/health']
+      interval: 5s
+      retries: 20
+
+volumes:
+  identity-db:
+  hydra-db:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${UNI_AUTH_SUBNET:-172.30.40.0/24}
