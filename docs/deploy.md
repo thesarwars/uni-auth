@@ -7,7 +7,7 @@ database, Redis and the login application are all containers. nginx on the host 
                  https://uni-auth.gostyle.uk  (nginx, TLS)
                  ├── /oauth2/*, /.well-known/*, /userinfo  ->  127.0.0.1:4444  Hydra (public)
                  ├── /hooks/*                              ->  404
-                 └── everything else                       ->  127.0.0.1:3100  login application
+                 └── everything else                       ->  127.0.0.1:3120  login application
 ```
 
 Hydra's admin API (port 4445) is published on no interface. Only the login application and the

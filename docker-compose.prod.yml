@@ -8,7 +8,7 @@
 #
 # Published on 127.0.0.1 only, for nginx on the host, which terminates TLS for UNI_AUTH_HOST:
 #   127.0.0.1:${HYDRA_PORT:-4444}  Hydra public (/oauth2/*, /.well-known/*, /userinfo, /health/*)
-#   127.0.0.1:${LOGIN_PORT:-3100}  the login application (everything else)
+#   127.0.0.1:${LOGIN_PORT:-3120}  the login application (everything else)
 # Hydra's admin API (4445) is published on no interface (AU-2).
 
 name: uni-auth
@@ -143,7 +143,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
-      - '127.0.0.1:${LOGIN_PORT:-3100}:3100'
+      - '127.0.0.1:${LOGIN_PORT:-3120}:3100'
     depends_on:
       redis: { condition: service_healthy }
       setup: { condition: service_completed_successfully }
