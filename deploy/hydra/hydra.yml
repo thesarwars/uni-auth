@@ -18,6 +18,7 @@ serve:
       enabled: true
       allowed_origins:
         - http://localhost:5173 # GSN web, Vite's default dev port
+        - http://localhost:3000 # GSN web on the frontend team's port
   admin:
     # Never published beyond loopback (docker-compose.yml) and never behind an ingress in a
     # deployment: the admin API can register clients and accept any login (AU-2).

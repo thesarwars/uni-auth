@@ -6,8 +6,8 @@
   "response_types": ["code"],
   "scope": "openid offline_access email phone",
   "audience": ["gsn-api"],
-  "redirect_uris": ["http://localhost:5173/callback"],
-  "post_logout_redirect_uris": ["http://localhost:5173/"],
+  "redirect_uris": ["http://localhost:5173/callback", "http://localhost:3000/callback"],
+  "post_logout_redirect_uris": ["http://localhost:5173/", "http://localhost:3000/"],
   "skip_consent": true,
   "metadata": {
     "first_party": true,

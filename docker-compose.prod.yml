@@ -78,7 +78,9 @@ services:
       URLS_LOGOUT: https://${UNI_AUTH_HOST}/logout
       URLS_ERROR: https://${UNI_AUTH_HOST}/error
       URLS_POST_LOGOUT_REDIRECT: https://${UNI_AUTH_HOST}/signed-out
-      SERVE_PUBLIC_CORS_ALLOWED_ORIGINS: ${GSN_WEB_ORIGIN:?set GSN_WEB_ORIGIN in .env}
+      # The browser origins that may call the token endpoint: CORS_ALLOWED_ORIGINS (comma
+      # separated) when set, else the GSN web origin alone.
+      SERVE_PUBLIC_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-${GSN_WEB_ORIGIN:?set GSN_WEB_ORIGIN in .env}}
       # Hydra calls the hook inside the compose network, never through nginx: /hooks/ is not
       # served publicly.
       OAUTH2_REFRESH_TOKEN_HOOK_URL: http://login:3100/hooks/refresh
