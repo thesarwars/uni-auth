@@ -17,7 +17,7 @@ const defaults: Record<string, string> = {
   LOG_LEVEL: 'error',
   HYDRA_ADMIN_URL: 'http://127.0.0.1:4445',
   COOKIE_SECRET: 'test-only-cookie-secret-0000000000000000',
-  PROVIDER_NAME: 'uni-auth',
+  PROVIDER_NAME: 'entity-auth',
   HYDRA_PUBLIC_URL: 'http://localhost:4444',
   REDIS_URL: 'redis://127.0.0.1:6380',
   // A fresh namespace per run, so one run's failed attempts never lock out the next.

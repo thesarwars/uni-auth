@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title><%= it.title %> · <%= it.providerName %></title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/entity-auth-32.png">
+  <link rel="apple-touch-icon" href="/assets/entity-auth-180.png">
   <style>
     /* Placeholder styling until the design tokens arrive (auth-plan.md section 7.4). --field edges
        fields and secondary buttons at 3:1 or more (WCAG 1.4.11); --line is decoration only.
@@ -70,10 +72,14 @@
     .upstreams { display: grid; gap: 10px; margin-top: 20px; }
     .or { text-align: center; margin: 0; font-size: .875rem; }
     footer { margin-top: 24px; font-size: .875rem; color: var(--muted); }
+    /* The provider's mark, on every screen: who is asking for the password, before which app it is for. */
+    .brand { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; font-weight: 600; color: var(--ink); }
+    .brand img { width: 40px; height: 40px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); }
   </style>
 </head>
 <body>
   <main>
+  <p class="brand"><img src="/assets/entity-auth-120.png" alt=""><%= it.providerName %></p>
 <%~ it.body %>
   </main>
   <script src="/assets/password.js" defer></script>

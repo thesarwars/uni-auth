@@ -1,14 +1,17 @@
-import { Controller, Get, Res } from '@nestjs/common';
-import type { FastifyReply } from 'fastify';
+import { Controller, Get, Req, Res } from '@nestjs/common';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PUBLIC = join(__dirname, '..', '..', 'public');
 
+/** The provider's mark, in the sizes the screens use: the brand line, the favicon, iOS. */
+const LOGOS = ['entity-auth-32.png', 'entity-auth-120.png', 'entity-auth-180.png'] as const;
+
 /**
- * The one script the screens load (public/password.js), from this origin, which is all the
- * Content-Security-Policy allows (script-src 'self'). Read once at start, so a request never
- * names a path on disk.
+ * The one script the screens load (public/password.js) and the provider's logo, from this
+ * origin, which is all the Content-Security-Policy allows (script-src 'self'). Read once at
+ * start, so a request never names a path on disk.
  */
 @Controller('assets')
 export class AssetsController {
@@ -20,5 +23,18 @@ export class AssetsController {
       .header('content-type', 'text/javascript; charset=utf-8')
       .header('cache-control', 'public, max-age=300')
       .send(this.passwordJs);
+  }
+
+  private readonly logos = new Map<string, Buffer>(
+    LOGOS.map((name) => [name, readFileSync(join(PUBLIC, name))]),
+  );
+
+  @Get(LOGOS.map((name) => name))
+  logo(@Req() request: FastifyRequest, @Res() reply: FastifyReply): FastifyReply {
+    const name = request.url.split('?')[0]!.split('/').pop()!;
+    return reply
+      .header('content-type', 'image/png')
+      .header('cache-control', 'public, max-age=86400')
+      .send(this.logos.get(name));
   }
 }

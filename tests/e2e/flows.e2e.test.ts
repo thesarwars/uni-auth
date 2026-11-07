@@ -256,7 +256,7 @@ describe('sign-out', () => {
     }).toString()}`;
     const { url, hop } = await b.follow(start);
     expect(url).toMatch(/^http:\/\/localhost:3100\/logout\?logout_challenge=/);
-    expect(hop.html).toContain('Sign out of uni-auth?');
+    expect(hop.html).toContain('Sign out of entity-auth?');
     expect(hop.html).toContain('will be signed out too');
 
     const posted = await b.post(`${APP}/logout`, { ...formFields(hop.html), action: 'sign_out' });

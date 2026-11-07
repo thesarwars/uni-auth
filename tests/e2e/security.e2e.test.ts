@@ -262,6 +262,20 @@ describe('the only script is our own file', () => {
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await res.text()).toContain("'use strict'");
   });
+
+  it('serves the logo sizes as PNG, and nothing else from the folder', async () => {
+    for (const size of [32, 120, 180]) {
+      const res = await fetch(`${APP}/assets/entity-auth-${size}.png`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('image/png');
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      // The PNG signature.
+      expect([...new Uint8Array(await res.arrayBuffer()).slice(0, 4)]).toEqual([137, 80, 78, 71]);
+    }
+    for (const path of ['icon_blackbg.png', '../package.json', 'entity-auth-64.png']) {
+      expect((await fetch(`${APP}/assets/${path}`)).status).toBe(404);
+    }
+  });
 });
 
 describe('every form carries the CSRF token', () => {

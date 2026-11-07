@@ -80,7 +80,7 @@ const Env = z.object({
    * The provider's name on the screens that are about the provider rather than a client:
    * "Sign out of <name>?" (auth-plan.md section 7.2). The brand is OQ-ONB-10's answer.
    */
-  PROVIDER_NAME: z.string().min(1).default('uni-auth'),
+  PROVIDER_NAME: z.string().min(1).default('entity-auth'),
 
   /** How long the provider remembers a sign-in: the 90-day ceiling auth_session enforces. */
   REMEMBER_SECONDS: z.coerce
