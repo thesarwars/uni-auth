@@ -217,7 +217,10 @@ describe('a password reset', () => {
       password: 'New-Password-1',
       confirm: 'New-Password-1',
     });
-    const { url } = await b.follow(page.location!);
+    // The reset signs in, and says so before linking on to the client.
+    expect(page.html).toContain('Password updated');
+    const next = /<a class="btn" href="([^"]+)"/.exec(page.html)![1]!.replace(/&amp;/g, '&');
+    const { url } = await b.follow(next);
     const t = await exchange(new URL(url).searchParams.get('code')!, verifier);
     expect(t.status).toBe(200);
 

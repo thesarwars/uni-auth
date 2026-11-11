@@ -1,32 +1,41 @@
 <% layout('./layout') %>
-<%~ include('./_header', it) %>
 <% if (it.create) { %>
-<h1>Create your account</h1>
-<p class="hint">Enter the <%= it.phones ? "email or phone number" : "email address" %> you want to use. We'll send it a code to confirm it's yours, then <%= it.clientName %> signs you in.</p>
+<h1 id="title">Create your account</h1>
+<p class="lede">Enter the <%= it.phones ? "email or phone number" : "email address" %> you want to use. We'll send it a code to confirm it's yours, then <strong><%= it.clientName %></strong> signs you in.</p>
 <% } else { %>
-<h1>Sign in to continue to <%= it.clientName %></h1>
+<h1 id="title">Sign in</h1>
+<p class="lede">Use your <%= it.providerName %> account to continue to <strong><%= it.clientName %></strong></p>
 <% } %>
 <form method="post" action="/login" novalidate>
   <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
   <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
-  <label for="identifier"><%= it.phones ? "Email or phone" : "Email" %></label>
-  <input id="identifier" name="identifier" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus value="<%= it.typed %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="identifier-error"<% } %>>
-  <% if (it.error) { %><p id="identifier-error" class="error" role="alert"><%= it.error %></p><% } %>
-  <% if (it.phones) { %><p class="hint">A phone number needs its country code, like +44 7700 900123.</p><% } %>
-  <div class="actions">
-    <button type="submit" name="action" value="identify">Continue</button>
-    <button type="submit" name="action" value="cancel" class="secondary" formnovalidate>Cancel</button>
+  <div class="field">
+    <label for="identifier"><%= it.phones ? "Email or phone" : "Email" %></label>
+    <input id="identifier" class="text" name="identifier" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus value="<%= it.typed %>"<% if (it.error || it.phones) { %> aria-describedby="<%= [it.phones ? 'identifier-hint' : '', it.error ? 'identifier-error' : ''].filter(Boolean).join(' ') %>"<% } %><% if (it.error) { %> aria-invalid="true"<% } %>>
+<% if (it.phones) { %>
+    <p id="identifier-hint" class="hint">A phone number needs its country code, like +44 7700 900123.</p>
+<% } %>
+<% if (it.error) { %>
+    <p id="identifier-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %></span></p>
+<% } %>
   </div>
+  <button type="submit" name="action" value="identify" class="btn">Continue</button>
 </form>
 <% if (it.upstreams.length) { %>
+<p class="or">or</p>
 <form method="post" action="/login" class="upstreams">
   <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
   <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
-  <p class="or">or</p>
-  <% it.upstreams.forEach(function (u) { %>
-  <button type="submit" name="provider" value="<%= u.id %>" class="secondary">Continue with <%= u.name %></button>
-  <% }) %>
   <input type="hidden" name="action" value="upstream">
+<% it.upstreams.forEach(function (u) { %>
+  <button type="submit" name="provider" value="<%= u.id %>" class="btn secondary">Continue with <%= u.name %></button>
+<% }) %>
 </form>
 <% } %>
-<footer>Signing in through <%= it.providerName %></footer>
+<div class="band">
+<% if (it.create) { %>
+  <p>Already have an account? Enter its <%= it.phones ? "email or phone" : "email" %> and you'll sign in.</p>
+<% } else { %>
+  <p>New here? Enter your <%= it.phones ? "email or phone" : "email" %> to create an account.</p>
+<% } %>
+</div>

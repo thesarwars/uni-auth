@@ -6,7 +6,8 @@
  *   - the rules list ticks each rule as it is met, with the same tests the server applies
  *     (src/credentials/password.service.ts checkPassword);
  *   - a strength meter, which only advises: it never blocks a password the policy accepts;
- *   - "Type it again" says whether the two match.
+ *   - "Confirm password" says whether the two match;
+ *   - the code field is shown as one box per digit, and its button waits for every digit.
  * The only script these pages may run (Content-Security-Policy: script-src 'self').
  */
 (function () {
@@ -44,6 +45,43 @@
       });
     }
   });
+
+  // The code: the real input stays (it takes the typing, the paste and the autofill) but sits
+  // invisibly over one box per digit, which show what it holds and where the next digit goes.
+  var code = document.getElementById('code');
+  var wrap = code && code.parentElement;
+  if (code && wrap && wrap.classList.contains('code')) {
+    var length = Number(code.getAttribute('data-length')) || 6;
+    var boxes = document.createElement('div');
+    boxes.className = 'boxes';
+    boxes.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < length; i++) boxes.appendChild(document.createElement('span'));
+    wrap.insertBefore(boxes, code.nextSibling);
+    wrap.classList.add('boxed');
+    var submit = code.form && code.form.querySelector('button[value="verify_code"]');
+    var show = function () {
+      code.value = code.value.replace(/\D/g, '').slice(0, length);
+      var digits = code.value.split('');
+      Array.prototype.forEach.call(boxes.children, function (box, i) {
+        box.textContent = digits[i] || '';
+        box.classList.toggle('at', i === Math.min(digits.length, length - 1));
+      });
+      if (submit) submit.disabled = digits.length < length;
+    };
+    code.addEventListener('input', function () {
+      // A new digit is a new attempt: the last one's red marks go.
+      wrap.removeAttribute('data-invalid');
+      show();
+    });
+    code.addEventListener('focus', function () {
+      wrap.classList.add('focused');
+    });
+    code.addEventListener('blur', function () {
+      wrap.classList.remove('focused');
+    });
+    show();
+    if (document.activeElement === code) wrap.classList.add('focused');
+  }
 
   var rules = document.getElementById('rules');
   var password = document.getElementById('password');
@@ -89,7 +127,7 @@
       if (!allMet) level = Math.min(level, 1);
       strength.hidden = false;
       strength.setAttribute('data-level', String(level));
-      strength.querySelector('strong').textContent = pw ? LEVELS[level] : '-';
+      strength.querySelector('strong').textContent = pw ? LEVELS[level] : 'none yet';
     }
     updateMatch();
   }

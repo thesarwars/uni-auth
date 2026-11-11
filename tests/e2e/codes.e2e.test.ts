@@ -64,16 +64,26 @@ async function enter(f: Flow, code: string): Promise<Hop> {
   return post(f, { action: 'verify_code', otp_id: otpId(f.page), code });
 }
 
-/** Follows a successful sign-in back to the client and exchanges the code for tokens. */
+/**
+ * Follows a successful sign-in back to the client and exchanges the code for tokens. A reset
+ * signs in too, but says so first: its "Password updated" screen links on to the client.
+ */
 async function landed(f: Flow): Promise<Record<string, any>> {
-  expect(f.page.status).toBe(303);
-  const { url } = await f.b.follow(f.page.location!);
+  const { url } = await f.b.follow(continueTo(f.page));
   const t = await exchange(new URL(url).searchParams.get('code')!, f.verifier);
   expect(t.status).toBe(200);
   return claims(t.body.access_token);
 }
 
 const codeFor = (to: string): string => outbox.last(to)!.code;
+
+/** Where a signed-in screen sends the browser: a 303, or the "Password updated" link. */
+function continueTo(page: Hop): string {
+  if (page.status === 303) return page.location!;
+  expect(page.status).toBe(200);
+  expect(page.html).toContain('Password updated');
+  return /<a class="btn" href="([^"]+)"/.exec(page.html)![1]!.replace(/&amp;/g, '&');
+}
 
 async function codeOnly(): Promise<Member> {
   return createMember({ password: null });
@@ -85,10 +95,8 @@ describe('sign-in by code', () => {
     const f = await start();
     const page = await identify(f, m.email);
     expect(page.status).toBe(200);
-    expect(page.html).toContain('Enter your code');
-    expect(page.html).toMatch(
-      /We sent a 6-digit code to <strong>m•••@example\.com<\/strong> by email/,
-    );
+    expect(page.html).toContain('Check your email');
+    expect(page.html).toMatch(/Enter the 6-digit code we just sent to sign in/);
     expect(page.html).toContain('autocomplete="one-time-code"');
 
     await enter(f, codeFor(m.email));
@@ -109,7 +117,7 @@ describe('sign-in by code', () => {
     const m = await createMember();
     const f = await start();
     const pw = await identify(f, m.email);
-    expect(pw.html).toContain('Get a code by email instead');
+    expect(pw.html).toContain('Get a code by email');
     await sendCode(f, 'sign_in');
     await enter(f, codeFor(m.email));
     expect((await landed(f)).amr).toEqual(['otp']);
@@ -127,8 +135,8 @@ describe('sign-in by code', () => {
       f,
       phone.replace(/^\+44/, '+44 ').replace(/(\d{4})(\d+)$/, '$1 $2'),
     );
-    expect(page.html).toContain(`•••• ${phone.slice(-4)}`);
-    expect(page.html).toContain('by WhatsApp');
+    expect(page.html).toContain(`<span class="who">${phone}</span>`);
+    expect(page.html).toContain('Check WhatsApp');
     expect(outbox.last(phone)!.channel).toBe('whatsapp');
     await enter(f, codeFor(phone));
     expect((await landed(f)).sub).toBe(m.identityId);
@@ -147,7 +155,7 @@ describe('sign-in by code', () => {
       expect(p.status).toBe(422);
       pages.push(p.html);
     }
-    expect(pages[0]).toContain('That code is not right.');
+    expect(pages[0]).toContain('That code isn&#39;t right.');
     expect(pages[0]).not.toContain('left.');
     expect(pages[2]).toContain('2 attempts left.');
     expect(pages[3]).toContain('1 attempt left.');
@@ -253,7 +261,7 @@ describe('recovery', () => {
     const code = await sendCode(f, 'recovery');
     expect(code.html).toContain('Reset your password');
     const choose = await enter(f, codeFor(m.email));
-    expect(choose.html).toContain('Choose a new password');
+    expect(choose.html).toContain('Set a new password');
     expect(choose.html).toContain('At least 8 characters');
     expect(choose.html).toContain('autocomplete="new-password"');
 

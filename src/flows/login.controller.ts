@@ -4,7 +4,12 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { redirect, render, renderError } from '../common/pages';
 import { env } from '../config/env';
-import { OtpService, type CodeView, type OtpPurpose } from '../credentials/otp.service';
+import {
+  CODE_LENGTH,
+  OtpService,
+  type CodeView,
+  type OtpPurpose,
+} from '../credentials/otp.service';
 import { checkPassword, PasswordService } from '../credentials/password.service';
 import { Database } from '../db/database.service';
 import { EmailSender } from '../delivery/email.sender';
@@ -41,6 +46,7 @@ const LoginForm = z.discriminatedUnion('action', [
     identifier: Typed,
     password: z.string().max(1024),
   }),
+  z.object({ action: z.literal('reset'), login_challenge: Challenge, identifier: Typed }),
   z.object({
     action: z.literal('send_code'),
     login_challenge: Challenge,
@@ -192,6 +198,8 @@ export class LoginController {
         return this.identify(ctx, form.identifier);
       case 'password':
         return this.password(ctx, form.password);
+      case 'reset':
+        return this.resetScreen(ctx);
       case 'send_code':
         return this.sendCode(ctx, form.purpose);
       case 'verify_code':
@@ -319,7 +327,7 @@ export class LoginController {
         return;
       }
       await this.passwordScreen(ctx, {
-        error: 'That password is not right.',
+        error: "That password isn't right.",
         remaining: after.remaining <= WARN_AT ? after.remaining : null,
       });
       return;
@@ -426,7 +434,7 @@ export class LoginController {
         const found = await this.identities.resolve(ctx.id);
         await this.journalFailure(ctx, found, null, { reason: 'wrong_code' });
         await this.codeScreen(ctx, outcome.view.purpose, outcome.view, {
-          error: 'That code is not right.',
+          error: "That code isn't right. Try again, or resend a new code.",
           remaining: outcome.remaining <= WARN_AT ? outcome.remaining : null,
         });
         return;
@@ -512,12 +520,19 @@ export class LoginController {
 
     // The reset was the way out the lockout screen offered; it lifts the lockout.
     await this.throttle.lift(ctx.id.value);
-    await this.accept(ctx, {
+    // Signed in already; the member is told the password changed, then continues to the client.
+    const next = await this.signIn.acceptTo(ctx.reply, ctx.challenge, ctx.request, ctx.seen, {
       identityId: done.identityId,
       credentialId: done.credentialId,
       credentialKind: 'password',
       amr: ['otp'],
       detail: { method: 'recovery' },
+    });
+    if (!next) return;
+    await render(ctx.reply, 'password-updated', 'Password updated', {
+      clientName: clientName(ctx.request.client),
+      next,
+      done: true,
     });
   }
 
@@ -697,10 +712,11 @@ export class LoginController {
     return render(
       ctx.reply,
       'password',
-      'Enter your password',
+      'Welcome back',
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
+        phone: ctx.id.kind === 'phone',
         codeChannel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
         error: state.error ?? null,
         remaining: state.remaining ?? null,
@@ -737,6 +753,7 @@ export class LoginController {
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
+        phone: ctx.id.kind === 'phone',
         destination: masked(ctx.id),
         channel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
         purpose: purpose ?? 'sign_in',
@@ -766,6 +783,7 @@ export class LoginController {
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
+        phone: ctx.id.kind === 'phone',
         noun: noun(ctx.id),
         channel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
         rules: checkPassword(policy, state.typed ?? ''),
@@ -785,10 +803,11 @@ export class LoginController {
     await render(
       ctx.reply,
       'new-password',
-      'Choose a new password',
+      'Set a new password',
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
+        phone: ctx.id.kind === 'phone',
         ticket,
         rules: checkPassword(policy, state.typed ?? ''),
         checked: state.typed !== undefined,
@@ -796,6 +815,17 @@ export class LoginController {
       },
       state.error ? 422 : 200,
     );
+  }
+
+  /** Recovery's first step: who it is for, and a code to send before anything changes. */
+  private resetScreen(ctx: Ctx): FastifyReply {
+    return render(ctx.reply, 'reset', 'Reset your password', {
+      ...page(ctx.reply, ctx.challenge, ctx.request),
+      identifier: ctx.id.value,
+      phone: ctx.id.kind === 'phone',
+      channel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
+      codeLength: CODE_LENGTH,
+    });
   }
 
   private lockoutScreen(ctx: Ctx, until: Date): FastifyReply {
@@ -806,6 +836,7 @@ export class LoginController {
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
+        phone: ctx.id.kind === 'phone',
         minutes: minutesUntil(until),
       },
       429,
@@ -848,7 +879,8 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
   return {
     challenge,
     clientName: clientName(request.client),
-    logoUri: request.client.logo_uri,
+    // The way back: cancels the sign-in, so the client hears access_denied.
+    backTo: clientName(request.client),
     csrfToken: reply.generateCsrf(),
   };
 }
@@ -856,6 +888,7 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
 const minutesUntil = (t: Date): number =>
   Math.max(1, Math.round((t.getTime() - Date.now()) / 60_000));
 
+/** The code screen's page title; its heading is "Check your email" (or WhatsApp). */
 function heading(purpose: OtpPurpose | null, id: Identifier): string {
   if (purpose === 'recovery') return 'Reset your password';
   if (purpose === 'signup') return `Confirm your ${noun(id)}`;

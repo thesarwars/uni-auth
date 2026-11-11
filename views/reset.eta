@@ -1,0 +1,15 @@
+<% layout('./layout') %>
+<h1 id="title">Reset your password</h1>
+<%~ include('./_pill', it) %>
+<p class="lede">We'll <%= it.channel === 'email' ? 'email you' : 'send you on WhatsApp' %> a <%= it.codeLength %>-digit code to confirm it's you. Then you can choose a new password.</p>
+<form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+  <input type="hidden" name="purpose" value="recovery">
+  <button type="submit" name="action" value="send_code" class="btn">Send code</button>
+</form>
+<div class="band">
+  <form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+    <p>Remembered it? <button type="submit" name="action" value="identify" class="link">Back to sign in</button></p>
+  </form>
+</div>

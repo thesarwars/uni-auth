@@ -1,44 +1,48 @@
 <% layout('./layout') %>
-<%~ include('./_header', it) %>
+<% var where = it.channel === 'email' ? 'your email' : 'WhatsApp'; %>
 <% if (it.locked) { %>
-<h1>Too many wrong codes</h1>
-<p role="alert">For your security, no more codes can be sent to <%= it.destination %> for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
+<h1 id="title">Too many wrong codes</h1>
+<%~ include('./_pill', it) %>
+<p class="lede" role="alert">For your security, no more codes can be sent to <strong><%= it.destination %></strong> for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
 <% } else if (it.rateLimited) { %>
-<h1>Please wait before asking again</h1>
-<p role="alert">We've sent as many codes to <%= it.destination %> as we can for now. You can ask for another in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
+<h1 id="title">Please wait before asking again</h1>
+<%~ include('./_pill', it) %>
+<p class="lede" role="alert">We've sent as many codes to <strong><%= it.destination %></strong> as we can for now. You can ask for another in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
 <% } else if (it.expired) { %>
-<h1><%= it.ticketExpired ? (it.purpose === 'signup' ? 'Your sign-up took too long' : 'Your reset took too long') : 'That code has expired' %></h1>
+<h1 id="title"><%= it.ticketExpired ? (it.purpose === 'signup' ? 'Your sign-up took too long' : 'Your reset took too long') : 'That code has expired' %></h1>
+<%~ include('./_pill', it) %>
 <% if (it.ticketExpired && it.purpose === 'signup') { %>
-<p role="alert">Nothing was saved. Start again to create your account.</p>
-<div class="actions"><a class="button" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Start again</a></div>
+<p class="lede" role="alert">Nothing was saved. Start again to create your account.</p>
+<a class="btn" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Start again</a>
 <% } else { %>
-<p role="alert"><%= it.ticketExpired ? 'Send a new code to start again.' : 'It was used already, or too much time passed. Send a new one.' %></p>
+<p class="lede" role="alert"><%= it.ticketExpired ? 'Send a new code to start again.' : 'It was used already, or too much time passed. Send a new one.' %></p>
 <form method="post" action="/login">
 <%~ include('./_hidden', it) %>
   <input type="hidden" name="purpose" value="<%= it.purpose %>">
-  <div class="actions">
-    <button type="submit" name="action" value="send_code">Send a new code</button>
-  </div>
+  <button type="submit" name="action" value="send_code" class="btn">Send a new code</button>
 </form>
 <% } %>
 <% } else { %>
-<h1><%= it.heading %></h1>
-<p>We sent a <%= it.code.codeLength %>-digit code to <strong><%= it.destination %></strong> by <%= it.channel %>.</p>
+<h1 id="title">Check <%= where %></h1>
+<%~ include('./_pill', it) %>
+<p class="lede">Enter the <%= it.code.codeLength %>-digit code we just sent <%= it.purpose === 'signup' ? 'to confirm ' + (it.channel === 'email' ? 'this email' : 'this number') + ' is yours' : it.purpose === 'recovery' ? 'to reset your password' : 'to sign in' %>.</p>
 <form method="post" action="/login">
 <%~ include('./_hidden', it) %>
   <input type="hidden" name="otp_id" value="<%= it.code.otpId %>">
-  <label for="code">Code</label>
-  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="<%= it.code.codeLength %>" required autofocus<% if (it.error) { %> aria-invalid="true" aria-describedby="code-error"<% } %>>
-  <% if (it.error) { %><p id="code-error" class="error" role="alert"><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></p><% } %>
-  <div class="actions">
-    <button type="submit" name="action" value="verify_code">Continue</button>
-  </div>
-</form>
-<form method="post" action="/login" class="inline">
-<%~ include('./_hidden', it) %>
-  <input type="hidden" name="purpose" value="<%= it.purpose %>">
-  <button type="submit" name="action" value="send_code" class="link">Send the code again</button>
-</form>
+  <div class="code"<% if (it.error) { %> data-invalid<% } %>>
+    <label for="code" class="sr"><%= it.code.codeLength %>-digit code</label>
+    <input id="code" class="text" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="<%= it.code.codeLength %>" data-length="<%= it.code.codeLength %>" required autofocus<% if (it.error) { %> aria-invalid="true" aria-describedby="code-error"<% } %>>
+<% if (it.error) { %>
+    <p id="code-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></span></p>
 <% } %>
-<p class="links"><a href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Not you?</a></p>
-<footer>Signing in through <%= it.providerName %></footer>
+  </div>
+  <button type="submit" name="action" value="verify_code" class="btn"><%= it.purpose === 'signup' ? (it.channel === 'email' ? 'Verify email' : 'Verify number') : 'Continue' %></button>
+</form>
+<div class="band">
+  <form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+    <input type="hidden" name="purpose" value="<%= it.purpose %>">
+    <p>Didn't get a code? <button type="submit" name="action" value="send_code" class="link">Resend code</button></p>
+  </form>
+</div>
+<% } %>

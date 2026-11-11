@@ -67,7 +67,8 @@ describe('the identifier screen', () => {
     const res = await identify(b, await loginPage(b), 'nobody-here@example.com');
     expect(res.status).toBe(200);
     expect(res.html).toContain('Create your account');
-    expect(res.html).toContain('No account uses <strong>nobody-here@example.com</strong> yet.');
+    expect(res.html).toContain('No account uses this email address yet.');
+    expect(res.html).toContain('<span class="who">nobody-here@example.com</span>');
   });
 
   it('matches an address however it was typed', async () => {
@@ -75,8 +76,9 @@ describe('the identifier screen', () => {
     const b = browser();
     const res = await identify(b, await loginPage(b), `  ${m.email.toUpperCase()} `);
     expect(res.status).toBe(200);
-    expect(res.html).toContain('Enter your password');
-    expect(res.html).toContain(`value="${m.email}" readonly`);
+    expect(res.html).toContain('Welcome back');
+    expect(res.html).toContain(`autocomplete="username" value="${m.email}" hidden readonly`);
+    expect(res.html).toContain(`<span class="who">${m.email}</span>`);
   });
 
   it('turns a suspended account away before any password is asked for', async () => {
@@ -85,7 +87,7 @@ describe('the identifier screen', () => {
     const b = browser();
     const res = await identify(b, await loginPage(b), m.email);
     expect(res.html).toContain('This account is suspended');
-    expect(res.html).not.toContain('Enter your password');
+    expect(res.html).not.toContain('Welcome back');
   });
 
   it('points an account with no password at the way it signs in', async () => {
@@ -142,7 +144,7 @@ describe('the password screen', () => {
       expect(last.status).toBe(422);
       seen.push(last.html);
     }
-    expect(seen[0]).toContain('That password is not right.');
+    expect(seen[0]).toContain('That password isn&#39;t right.');
     expect(seen[0]).not.toContain('left before');
     expect(seen[2]).toContain('2 attempts left before sign-in is paused.');
     expect(seen[3]).toContain('1 attempt left before sign-in is paused.');

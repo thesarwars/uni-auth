@@ -40,6 +40,21 @@ export class SignIn {
     seen: Seen,
     a: Authenticated,
   ): Promise<void> {
+    const to = await this.acceptTo(reply, challenge, request, seen, a);
+    if (to) await redirect(reply, to);
+  }
+
+  /**
+   * As accept, but hands back where the browser goes next instead of sending it there, for a
+   * screen that says what happened first. Null when a screen has already been shown instead.
+   */
+  async acceptTo(
+    reply: FastifyReply,
+    challenge: string,
+    request: LoginRequest,
+    seen: Seen,
+    a: Authenticated,
+  ): Promise<string | null> {
     const sid = request.session_id;
     if (!sid) throw new Error('Hydra sent a login request with no session id');
 
@@ -81,10 +96,10 @@ export class SignIn {
         'Please sign in again',
         'This browser was signed in as someone else. Go back to the app and sign in again.',
       );
-      return;
+      return null;
     }
 
-    const to = await this.hydra.acceptLogin(challenge, {
+    return this.hydra.acceptLogin(challenge, {
       subject: a.identityId,
       remember: true,
       remember_for: env.REMEMBER_SECONDS,
@@ -94,6 +109,5 @@ export class SignIn {
       amr: a.amr,
       context: { auth_time: Math.floor(Date.now() / 1000) },
     });
-    await redirect(reply, to);
   }
 }
