@@ -69,7 +69,7 @@ async function complete(b: Browser, html: string, who: Member = member): Promise
     identifier: who.email,
   });
   expect(identified.status).toBe(200);
-  expect(identified.html).toContain('Enter your password');
+  expect(identified.html).toContain('Welcome back');
   const posted = await b.post(`${APP}/login`, {
     ...formFields(identified.html),
     action: 'password',

@@ -59,6 +59,7 @@ beforeAll(async () => {
   keep('identifier, refused', await post(b, page, { action: 'identify', identifier: 'x' }));
   page = keep('password', await post(b, page, { action: 'identify', identifier: member.email }));
   keep('password, wrong', await post(b, page, { action: 'password', password: 'Not-It-123' }));
+  keep('reset', await post(b, page, { action: 'reset' }));
   page = keep('code', await post(b, page, { action: 'send_code', purpose: 'recovery' }));
   const otp = { otp_id: /name="otp_id" value="([^"]+)"/.exec(page.html)![1]! };
   keep('code, wrong', await post(b, page, { action: 'verify_code', ...otp, code: '000000' }));
@@ -70,6 +71,15 @@ beforeAll(async () => {
     'new password, refused',
     await post(b, page, { action: 'new_password', password: 'weak', confirm: 'other' }),
   );
+  keep(
+    'password updated',
+    await post(b, page, {
+      action: 'new_password',
+      password: 'Brand-New-Pass-1',
+      confirm: 'Brand-New-Pass-1',
+    }),
+  );
+  member.password = 'Brand-New-Pass-1'; // the reset changed it
 
   ({ b, page } = await start());
   page = await post(b, page, {
@@ -116,10 +126,12 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
     'identifier, refused',
     'password',
     'password, wrong',
+    'reset',
     'code',
     'code, wrong',
     'new password',
     'new password, refused',
+    'password updated',
     'sign-up',
     'sign-up, refused',
     'lockout',
@@ -158,17 +170,14 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
 });
 
 // Contrast (1.4.3 text, 1.4.11 the edges of fields and buttons) from the layout's colour tokens.
+// The design is light only. Alpha tokens (borders and rings that only decorate) are not checked.
 describe('colour contrast', () => {
   const css = readFileSync(join(__dirname, '..', '..', 'views', 'layout.eta'), 'utf8');
-  const tokens = (block: string) =>
-    Object.fromEntries(
-      [...block.matchAll(/--([a-z-]+):\s*#([0-9a-f]{6}|[0-9a-f]{3})\b/g)].map((m) => [
-        m[1]!,
-        `#${m[2]!.length === 3 ? [...m[2]!].map((c) => c + c).join('') : m[2]!}`,
-      ]),
-    );
-  const light = tokens(/:root\s*{([^}]*)}/.exec(css)![1]!);
-  const dark = tokens(/prefers-color-scheme: dark\)\s*{\s*:root\s*{([^}]*)}/.exec(css)![1]!);
+  const t = Object.fromEntries(
+    [.../:root\s*{([^}]*)}/.exec(css)![1]!.matchAll(/--([a-z-]+):\s*#([0-9a-f]{6})\b/g)].map(
+      (m) => [m[1]!, `#${m[2]!}`],
+    ),
+  );
 
   const luminance = (hex: string) => {
     const [r, g, b] = [1, 3, 5].map((i) => {
@@ -184,28 +193,28 @@ describe('colour contrast', () => {
 
   // [foreground, background, minimum]
   const pairs: [string, string, number][] = [
-    ['ink', 'card', 4.5],
-    ['ink', 'bg', 4.5],
-    ['muted', 'card', 4.5],
-    ['danger', 'card', 4.5],
-    ['accent-ink', 'accent', 4.5],
-    ['field', 'card', 3], // text inputs' and secondary buttons' edges
-    ['danger', 'card', 3], // an invalid field's edge
-    ['ink', 'card', 3], // the focus ring
-    ['ok', 'card', 4.5], // a met rule's tick, Good and Strong
-    ['warn', 'card', 4.5], // Fair
-    ['card', 'ok', 3], // the tick drawn on a met rule's circle
-    ['ok', 'line', 3], // a filled strength segment against an empty one
+    ['text-primary', 'bg-surface', 4.5],
+    ['text-primary', 'bg-page', 4.5],
+    ['text-primary', 'bg-subtle', 4.5], // the band under the card
+    ['text-secondary', 'bg-surface', 4.5],
+    ['text-secondary', 'bg-subtle', 4.5],
+    ['text-tertiary', 'bg-surface', 4.5], // hints, rules not yet met, the footer
+    ['text-tertiary', 'bg-page', 4.5],
+    ['status-error', 'bg-surface', 4.5],
+    ['text-on-action', 'action-primary', 4.5],
+    ['text-on-action', 'action-primary-hover', 4.5],
+    ['border-field', 'bg-surface', 3], // text inputs' and secondary buttons' edges
+    ['status-error', 'bg-surface', 3], // an invalid field's edge
+    ['border-focus', 'bg-surface', 3], // the focus ring
+    ['check-done', 'bg-surface', 3], // a met rule's tick
+    ['text-on-action', 'check-done', 3], // the tick drawn on it
+    ['meter-fill', 'meter-track', 3], // a filled strength segment against an empty one
   ];
-  for (const [scheme, t] of [
-    ['light', light],
-    ['dark', dark],
-  ] as const) {
-    for (const [fg, bg, min] of pairs) {
-      it(`${scheme}: ${fg} on ${bg} is at least ${min}:1`, () => {
-        expect(t[fg], `--${fg}`).toBeDefined();
-        expect(ratio(t[fg]!, t[bg]!)).toBeGreaterThanOrEqual(min);
-      });
-    }
+  for (const [fg, bg, min] of pairs) {
+    it(`${fg} on ${bg} is at least ${min}:1`, () => {
+      expect(t[fg], `--${fg}`).toBeDefined();
+      expect(t[bg], `--${bg}`).toBeDefined();
+      expect(ratio(t[fg]!, t[bg]!)).toBeGreaterThanOrEqual(min);
+    });
   }
 });

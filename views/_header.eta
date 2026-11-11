@@ -1,1 +1,0 @@
-<% if (it.logoUri) { %><img class="logo" src="<%= it.logoUri %>" alt=""><% } %>

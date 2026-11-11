@@ -6,9 +6,21 @@ import { env } from '../config/env';
 export interface PageBase {
   title: string;
   providerName: string;
+  /** The footer: whichever of help, privacy and terms this deployment links to. */
+  links: { label: string; href: string }[];
 }
 
-const base = (title: string): PageBase => ({ title, providerName: env.PROVIDER_NAME });
+const FOOTER = [
+  ['Help', 'HELP_URL'],
+  ['Privacy', 'PRIVACY_URL'],
+  ['Terms', 'TERMS_URL'],
+] as const;
+
+const base = (title: string): PageBase => ({
+  title,
+  providerName: env.PROVIDER_NAME,
+  links: FOOTER.flatMap(([label, key]) => (env[key] ? [{ label, href: env[key] }] : [])),
+});
 
 /**
  * Renders a page. Every page here belongs to one sign-in attempt and carries a challenge or a

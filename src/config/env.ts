@@ -9,6 +9,9 @@ import { z } from 'zod';
  * .env is shared with docker-compose.yml, which reads the Hydra variables from it; the ones
  * below are the login application's.
  */
+/** A URL, or unset: compose passes an unset one as an empty string. */
+const optionalUrl = z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional());
+
 const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
@@ -81,6 +84,11 @@ const Env = z.object({
    * "Sign out of <name>?" (auth-plan.md section 7.2). The brand is OQ-ONB-10's answer.
    */
   PROVIDER_NAME: z.string().min(1).default('entity-auth'),
+
+  /** The footer links on every screen: help, privacy notice and terms. Each is left out unset. */
+  HELP_URL: optionalUrl,
+  PRIVACY_URL: optionalUrl,
+  TERMS_URL: optionalUrl,
 
   /** How long the provider remembers a sign-in: the 90-day ceiling auth_session enforces. */
   REMEMBER_SECONDS: z.coerce

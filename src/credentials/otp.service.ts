@@ -7,7 +7,7 @@ import type { Identifier } from '../identity/identifier';
 export type OtpPurpose = 'sign_in' | 'recovery' | 'signup';
 export type OtpChannel = 'email' | 'whatsapp';
 
-const CODE_LENGTH = 6;
+export const CODE_LENGTH = 6;
 
 interface ChallengeRow {
   id: string;

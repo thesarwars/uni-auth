@@ -134,6 +134,9 @@ services:
       UNI_AUTH_SERVICE_SECRET: ${UNI_AUTH_SERVICE_SECRET}
       IDENTITY_NOTICE_URL: ${GSN_API_URL}/v1/uni-auth/identity-notices
       PROVIDER_NAME: ${PROVIDER_NAME:-entity-auth}
+      HELP_URL: ${HELP_URL:-}
+      PRIVACY_URL: ${PRIVACY_URL:-}
+      TERMS_URL: ${TERMS_URL:-}
       EMAIL_DELIVERY: smtp
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env}
       SMTP_PORT: ${SMTP_PORT:-587}

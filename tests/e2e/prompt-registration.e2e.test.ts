@@ -56,7 +56,7 @@ async function post(f: Flow, fields: Record<string, string>): Promise<Hop> {
   return f.page;
 }
 
-const h1 = (page: Hop) => /<h1>([^<]*)<\/h1>/.exec(page.html)?.[1];
+const h1 = (page: Hop) => /<h1[^>]*>([^<]*)<\/h1>/.exec(page.html)?.[1];
 
 describe('prompt=registration', () => {
   it('opens on the create-account wording', async () => {
@@ -77,7 +77,7 @@ describe('prompt=registration', () => {
 
   it('leaves an ordinary sign-in as it was', async () => {
     const f = await start();
-    expect(h1(f.page)).toBe('Sign in to continue to Go Style Network');
+    expect(h1(f.page)).toBe('Sign in');
   });
 
   it('is found among several prompt values', async () => {
@@ -102,7 +102,7 @@ describe('prompt=registration', () => {
   it('signs an address that already has an account in to it, and says so', async () => {
     const f = await start('registration');
     await post(f, { action: 'identify', identifier: member.email });
-    expect(h1(f.page)).toBe('Enter your password');
+    expect(h1(f.page)).toBe('Welcome back');
     expect(f.page.html).toContain(`There&#39;s already an account for ${member.email}`);
     await post(f, { action: 'password', password: member.password });
     expect(f.page.status).toBe(303);
@@ -117,7 +117,7 @@ describe('prompt=registration', () => {
   it('cannot be switched on by the browser', async () => {
     const f = await start();
     await post(f, { action: 'identify', identifier: 'x', prompt: 'registration', create: 'true' });
-    expect(h1(f.page)).toBe('Sign in to continue to Go Style Network');
+    expect(h1(f.page)).toBe('Sign in');
   });
 });
 

@@ -1,14 +1,10 @@
 <% layout('./layout') %>
-<%~ include('./_header', it) %>
-<h1>Create your account</h1>
-<p>No account uses <strong><%= it.identifier %></strong> yet. Choose a password, and we'll send a code by <%= it.channel %> to confirm the <%= it.noun %> is yours.</p>
+<h1 id="title">Create your account</h1>
+<%~ include('./_pill', it) %>
+<p class="lede">No account uses this <%= it.noun %> yet. Choose a password and we'll send a code by <%= it.channel %> to confirm it's yours.</p>
 <form method="post" action="/login">
 <%~ include('./_hidden', it) %>
   <input type="text" autocomplete="username" value="<%= it.identifier %>" hidden readonly>
-<%~ include('./_new-password', { label: 'Password', rules: it.rules, checked: it.checked, error: it.error }) %>
-  <div class="actions">
-    <button type="submit" name="action" value="signup">Create account</button>
-  </div>
+<%~ include('./_new-password', { label: 'Password', confirmLabel: 'Confirm password', rules: it.rules, checked: it.checked, error: it.error }) %>
+  <button type="submit" name="action" value="signup" class="btn">Create account</button>
 </form>
-<p class="links"><a href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Use a different email or phone</a></p>
-<footer>Signing in through <%= it.providerName %></footer>
