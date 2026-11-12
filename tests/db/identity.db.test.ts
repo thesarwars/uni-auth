@@ -107,6 +107,11 @@ describe('identity_identifier', () => {
     await q('UPDATE identity_identifier SET verified_at = now(), is_primary = true WHERE id = $1', [
       row.id,
     ]);
+    // Another verified address, so the identity keeps one (0005 identity_identifier_keep_one).
+    await q(
+      "INSERT INTO identity_identifier (identity_id, kind, value, verified_at) VALUES ($1, 'email', 'q@example.com', now())",
+      [a],
+    );
     await q('UPDATE identity_identifier SET is_primary = false, revoked_at = now() WHERE id = $1', [
       row.id,
     ]);

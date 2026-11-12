@@ -15,6 +15,18 @@ export interface Delivered {
 @Injectable()
 export class Outbox {
   private readonly sent: Delivered[] = [];
+  private readonly notices: { to: string; subject: string; text: string; at: Date }[] = [];
+
+  /** A security notice that would have been emailed. */
+  notice(n: { to: string; subject: string; text: string }): void {
+    this.notices.push({ ...n, at: new Date() });
+    if (this.notices.length > 200) this.notices.shift();
+  }
+
+  /** The notices sent to `to`, oldest first. */
+  noticesTo(to: string): { subject: string; text: string }[] {
+    return this.notices.filter((n) => n.to === to);
+  }
 
   record(d: Omit<Delivered, 'at'>): void {
     this.sent.push({ ...d, at: new Date() });

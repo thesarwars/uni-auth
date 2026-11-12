@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title><%= it.title %> · <%= it.providerName %> account</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/entity-auth.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/entity-auth-32.png">
+  <link rel="apple-touch-icon" href="/assets/entity-auth-180.png">
+  <link rel="preload" href="/assets/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/entity-auth.css">
+</head>
+<body>
+<div class="page">
+  <header class="acct-top">
+    <a class="acct-brand" href="/account"><img src="/assets/entity-auth.svg" alt="" width="28" height="28"><%= it.providerName %> <span>Account</span></a>
+<% if (it.csrfToken) { %>
+    <div class="acct-who">
+      <span class="who"><%= it.who %></span>
+      <form method="post" action="/account/sign-out">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <button type="submit" class="quiet">Sign out</button>
+      </form>
+    </div>
+<% } %>
+  </header>
+<% if (it.nav) { %>
+  <div class="acct-body">
+    <nav class="acct-nav" aria-label="Account">
+      <ul>
+<% [['home', '/account', 'Home'], ['personal', '/account/personal', 'Personal info'], ['contact', '/account/contact', 'Email and phone'], ['password', '/account/password', 'Password']].forEach(function (n) { %>
+        <li><a href="<%= n[1] %>"<% if (it.nav === n[0]) { %> aria-current="page"<% } %>><%= n[2] %></a></li>
+<% }) %>
+      </ul>
+    </nav>
+    <main class="acct-main" aria-labelledby="title">
+<% if (it.done) { %>      <p class="flash" role="status"><%= it.done %></p>
+<% } %>
+<%~ it.body %>
+    </main>
+  </div>
+<% } else { %>
+  <main>
+    <section class="card" aria-labelledby="title">
+<%~ it.body %>
+    </section>
+  </main>
+<% } %>
+<% if (it.links && it.links.length) { %>
+  <footer class="foot">
+<% it.links.forEach(function (l, i) { %>
+    <% if (i) { %><span class="dot" aria-hidden="true"></span><% } %><a href="<%= l.href %>"><%= l.label %></a>
+<% }) %>
+  </footer>
+<% } %>
+</div>
+  <script src="/assets/password.js" defer></script>
+</body>
+</html>

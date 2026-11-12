@@ -70,6 +70,12 @@ const Env = z.object({
   UNI_AUTH_SERVICE_SECRET: z.string().min(32),
 
   /**
+   * The account centre's client secret (deploy/hydra/clients/entity-auth-account.json): the
+   * account pages sign the member in through Hydra like any client (account-plan.md AC-D1).
+   */
+  ENTITY_AUTH_ACCOUNT_SECRET: z.string().min(32),
+
+  /**
    * Where an identity notice is delivered - "this identity closed", "this identity was erased" -
    * with a uni-auth-service token for IDENTITY_NOTICE_AUDIENCE (auth-plan.md section 12.2, part
    * 7). One product for now: GSN's Auth service.

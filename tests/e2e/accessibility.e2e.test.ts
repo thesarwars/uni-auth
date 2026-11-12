@@ -113,6 +113,58 @@ beforeAll(async () => {
   keep('signed out', await browser().get(`${APP}/signed-out`));
   keep('error', await browser().get(`${APP}/error?error=invalid_request`));
   keep('expired', await browser().get(`${APP}/login?login_challenge=nope`));
+
+  // The account centre (account-plan.md parts 1-3).
+  const holder = await createMember();
+  const a = browser();
+  let acct = (await a.follow(`${APP}/account`)).hop;
+  acct = await a.post(`${APP}/login`, {
+    ...formFields(acct.html),
+    action: 'identify',
+    identifier: holder.email,
+  });
+  acct = await a.post(`${APP}/login`, {
+    ...formFields(acct.html),
+    action: 'password',
+    password: holder.password,
+  });
+  keep('account home', (acct = (await a.follow(acct.location!)).hop));
+  const token = () => /name="_csrf" value="([^"]+)"/.exec(acct.html)![1]!;
+  keep('account personal info', (acct = (await a.follow(`${APP}/account/personal`)).hop));
+  keep(
+    'account personal info, refused',
+    await a.post(`${APP}/account/personal`, { _csrf: token(), display_name: 'x', locale: 'zz' }),
+  );
+  keep('account email and phone', (acct = (await a.follow(`${APP}/account/contact`)).hop));
+  keep(
+    'account email and phone, refused',
+    await a.post(`${APP}/account/contact/add`, { _csrf: token(), kind: 'email', value: 'nope' }),
+  );
+  const added = `a11y-${Date.now()}@example.com`;
+  keep(
+    'account code',
+    (acct = await a.post(`${APP}/account/contact/add`, {
+      _csrf: token(),
+      kind: 'email',
+      value: added,
+    })),
+  );
+  keep(
+    'account code, wrong',
+    await a.post(`${APP}/account/contact/verify`, {
+      _csrf: token(),
+      otp_id: /name="otp_id" value="([^"]+)"/.exec(acct.html)![1]!,
+      code: '000000',
+      destination: added,
+      kind: 'email',
+    }),
+  );
+  keep('account password', (acct = (await a.follow(`${APP}/account/password`)).hop));
+  keep(
+    'account password, refused',
+    await a.post(`${APP}/account/password`, { _csrf: token(), password: 'weak', confirm: 'x' }),
+  );
+  keep('account signed out', await browser().get(`${APP}/account/signed-out`));
 }, 120_000);
 
 afterAll(async () => {
@@ -140,6 +192,16 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
     'signed out',
     'error',
     'expired',
+    'account home',
+    'account personal info',
+    'account personal info, refused',
+    'account email and phone',
+    'account email and phone, refused',
+    'account code',
+    'account code, wrong',
+    'account password',
+    'account password, refused',
+    'account signed out',
   ];
   for (const name of names) {
     it(name, async () => {
@@ -169,10 +231,10 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
   });
 });
 
-// Contrast (1.4.3 text, 1.4.11 the edges of fields and buttons) from the layout's colour tokens.
+// Contrast (1.4.3 text, 1.4.11 the edges of fields and buttons) from the stylesheet's colour tokens.
 // The design is light only. Alpha tokens (borders and rings that only decorate) are not checked.
 describe('colour contrast', () => {
-  const css = readFileSync(join(__dirname, '..', '..', 'views', 'layout.eta'), 'utf8');
+  const css = readFileSync(join(__dirname, '..', '..', 'public', 'entity-auth.css'), 'utf8');
   const t = Object.fromEntries(
     [.../:root\s*{([^}]*)}/.exec(css)![1]!.matchAll(/--([a-z-]+):\s*#([0-9a-f]{6})\b/g)].map(
       (m) => [m[1]!, `#${m[2]!}`],

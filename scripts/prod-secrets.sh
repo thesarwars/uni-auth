@@ -10,7 +10,8 @@ cd "$(dirname "$0")/.."
 
 rand() { openssl rand -hex "$1"; }
 for name in HYDRA_DB_PASSWORD IDENTITY_DB_PASSWORD UNI_AUTH_DB_PASSWORD HYDRA_SECRETS_SYSTEM \
-  HYDRA_SECRETS_COOKIE HYDRA_HOOK_SECRET COOKIE_SECRET UNI_AUTH_SERVICE_SECRET; do
+  HYDRA_SECRETS_COOKIE HYDRA_HOOK_SECRET COOKIE_SECRET UNI_AUTH_SERVICE_SECRET \
+  ENTITY_AUTH_ACCOUNT_SECRET; do
   if grep -qE "^$name=.+" .env; then
     echo "$name: kept"
   elif grep -qE "^$name=$" .env; then

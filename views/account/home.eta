@@ -1,0 +1,25 @@
+<% layout('./layout') %>
+<% var emails = it.identifiers.filter(function (r) { return r.kind === 'email'; }); var phones = it.identifiers.filter(function (r) { return r.kind === 'phone'; }); %>
+<h1 id="title">Welcome<%= it.profile.displayName ? ', ' + it.profile.displayName : '' %></h1>
+<p class="lede">Manage the account you use to sign in to apps with <%= it.providerName %>.</p>
+<section class="panel" aria-labelledby="h-personal">
+  <h2 id="h-personal">Personal info</h2>
+  <ul class="rows">
+    <li><div class="what"><span class="label">Name</span><span class="value"><%= it.profile.displayName || 'Not set' %></span></div><a class="go" href="/account/personal">Edit<span class="sr"> personal info</span></a></li>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-contact">
+  <h2 id="h-contact">Email and phone</h2>
+  <ul class="rows">
+    <li><div class="what"><span class="label">Email</span><span class="value"><%= emails.length ? emails.map(function (r) { return r.value; }).join(', ') : 'None' %></span></div><a class="go" href="/account/contact">Manage<span class="sr"> email and phone</span></a></li>
+<% if (phones.length) { %>
+    <li><div class="what"><span class="label">Phone</span><span class="value"><%= phones.map(function (r) { return r.value; }).join(', ') %></span></div></li>
+<% } %>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-password">
+  <h2 id="h-password">Password</h2>
+  <ul class="rows">
+    <li><div class="what"><span class="label">Password</span><span class="value"><%= it.profile.passwordSetAt ? 'Last changed ' + it.profile.passwordSetAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'No password yet' %></span></div><a class="go" href="/account/password"><%= it.profile.passwordSetAt ? 'Change' : 'Set one' %><span class="sr"> password</span></a></li>
+  </ul>
+</section>

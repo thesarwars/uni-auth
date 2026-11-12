@@ -6,11 +6,12 @@ import { join } from 'node:path';
 const PUBLIC = join(__dirname, '..', '..', 'public');
 
 /**
- * The provider's mark (the SVG on every screen and as the favicon; PNGs for older browsers and
+ * The screens' stylesheet, the provider's mark (the SVG on every screen and as the favicon; PNGs for older browsers and
  * iOS) and the Inter face the screens are set in. Each with the type it is served as.
  */
 const FILES: Record<string, string> = {
   'entity-auth.svg': 'image/svg+xml',
+  'entity-auth.css': 'text/css; charset=utf-8',
   'entity-auth-32.png': 'image/png',
   'entity-auth-120.png': 'image/png',
   'entity-auth-180.png': 'image/png',

@@ -26,6 +26,10 @@ export interface AuthEvent {
     | 'password_reset'
     | 'credential_added'
     | 'identifier_verified'
+    | 'identifier_added'
+    | 'identifier_removed'
+    | 'password_changed'
+    | 'profile_updated'
     | 'identity_created';
   outcome: 'success' | 'failure';
   identityId?: string | null;
@@ -351,6 +355,182 @@ export class IdentityRepository {
     }
   }
 
+  // ---------------------------------------------------------------------------------------
+  // The account centre (account-plan.md parts 1-3)
+  // ---------------------------------------------------------------------------------------
+
+  async profile(identityId: string): Promise<Profile | null> {
+    const [row] = await this.db.rows<{
+      id: string;
+      status: IdentityStatus;
+      display_name: string | null;
+      locale: string;
+      created_at: Date;
+      password_set_at: Date | null;
+      upstreams: ('oauth_google' | 'oauth_apple')[] | null;
+    }>(
+      `SELECT i.id, i.status, i.display_name, i.locale, i.created_at,
+              (SELECT c.created_at FROM credential c
+                WHERE c.identity_id = i.id AND c.kind = 'password' AND c.revoked_at IS NULL) AS password_set_at,
+              (SELECT array_agg(DISTINCT c.kind::text) FROM credential c
+                WHERE c.identity_id = i.id AND c.kind <> 'password' AND c.revoked_at IS NULL) AS upstreams
+         FROM identity i WHERE i.id = $1`,
+      [identityId],
+    );
+    if (!row) return null;
+    return {
+      identityId: row.id,
+      status: row.status,
+      displayName: row.display_name,
+      locale: row.locale,
+      createdAt: row.created_at,
+      passwordSetAt: row.password_set_at,
+      upstreams: row.upstreams ?? [],
+    };
+  }
+
+  async updateProfile(
+    db: Db,
+    identityId: string,
+    p: { displayName: string | null; locale: string },
+  ): Promise<void> {
+    await db.query(
+      `UPDATE identity SET display_name = $2, locale = $3 WHERE id = $1 AND status = 'active'`,
+      [identityId, p.displayName, p.locale],
+    );
+  }
+
+  /** The live identifiers, primary first, then emails before phones, oldest first. */
+  async identifiers(identityId: string, db: Db = this.db.asDb()): Promise<IdentifierRow[]> {
+    const res = await db.query<{
+      id: string;
+      kind: 'email' | 'phone';
+      value: string;
+      verified_at: Date | null;
+      is_primary: boolean;
+      created_at: Date;
+    }>(
+      `SELECT id, kind, value, verified_at, is_primary, created_at FROM identity_identifier
+        WHERE identity_id = $1 AND revoked_at IS NULL
+        ORDER BY kind, is_primary DESC, created_at`,
+      [identityId],
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      value: r.value,
+      verified: r.verified_at !== null,
+      primary: r.is_primary,
+      addedAt: r.created_at,
+    }));
+  }
+
+  /** The identifier a "Confirm it's you" sign-in starts from: the primary email, else phone. */
+  async primaryIdentifier(identityId: string): Promise<Identifier | null> {
+    const rows = await this.identifiers(identityId);
+    const pick =
+      rows.find((r) => r.primary && r.verified && r.kind === 'email') ??
+      rows.find((r) => r.primary && r.verified) ??
+      rows.find((r) => r.verified);
+    return pick ? { kind: pick.kind, value: pick.value } : null;
+  }
+
+  /**
+   * Adds an address the member has just proved, verified. It becomes the primary of its kind
+   * when the identity has none. Throws AddressTaken when another identity verified it first.
+   */
+  async addIdentifier(db: Db, identityId: string, id: Identifier): Promise<string> {
+    await db.query('SAVEPOINT add_identifier');
+    try {
+      const row = await one<{ id: string }>(
+        db,
+        `INSERT INTO identity_identifier (identity_id, kind, value, verified_at, is_primary)
+         VALUES ($1, $2, $3, now(),
+                 NOT EXISTS (SELECT 1 FROM identity_identifier
+                              WHERE identity_id = $1 AND kind = $2 AND is_primary))
+         RETURNING id`,
+        [identityId, id.kind, id.value],
+      );
+      await db.query('RELEASE SAVEPOINT add_identifier');
+      return row!.id;
+    } catch (err) {
+      await db.query('ROLLBACK TO SAVEPOINT add_identifier');
+      if ((err as { code?: string }).code === '23505') throw new AddressTaken();
+      throw err;
+    }
+  }
+
+  /**
+   * Makes a verified identifier the primary of its kind. Returns the identifier it replaced, or
+   * null when there was none, or nothing changed (not the member's, or not verified).
+   */
+  async makePrimary(
+    db: Db,
+    identityId: string,
+    identifierId: string,
+  ): Promise<{ made: IdentifierRow; was: IdentifierRow | null } | null> {
+    const rows = await this.identifiers(identityId, db);
+    const made = rows.find((r) => r.id === identifierId);
+    if (!made || !made.verified || made.primary) return null;
+    const was = rows.find((r) => r.kind === made.kind && r.primary) ?? null;
+    if (was) {
+      await db.query('UPDATE identity_identifier SET is_primary = false WHERE id = $1', [was.id]);
+    }
+    await db.query('UPDATE identity_identifier SET is_primary = true WHERE id = $1', [made.id]);
+    return { made, was };
+  }
+
+  /**
+   * Removes an identifier. A primary hands its place to the oldest other verified identifier of
+   * its kind, if there is one. Throws LastIdentifier rather than leave none verified (the
+   * schema refuses it too: 0005 identity_identifier_keep_one).
+   */
+  async removeIdentifier(
+    db: Db,
+    identityId: string,
+    identifierId: string,
+  ): Promise<IdentifierRow | null> {
+    const rows = await this.identifiers(identityId, db);
+    const gone = rows.find((r) => r.id === identifierId);
+    if (!gone) return null;
+    if (gone.verified && !rows.some((r) => r.id !== gone.id && r.verified)) {
+      throw new LastIdentifier();
+    }
+    await db.query(
+      'UPDATE identity_identifier SET revoked_at = now(), is_primary = false WHERE id = $1',
+      [gone.id],
+    );
+    if (gone.primary) {
+      const heir = rows.find((r) => r.id !== gone.id && r.kind === gone.kind && r.verified);
+      if (heir) {
+        await db.query('UPDATE identity_identifier SET is_primary = true WHERE id = $1', [heir.id]);
+      }
+    }
+    return gone;
+  }
+
+  /**
+   * Sets a new password from the account centre (0005 password_change): every other session is
+   * revoked, `keepSid` stays signed in. `ended` names the sessions to end at Hydra after commit.
+   */
+  async changePassword(
+    db: Db,
+    a: { identityId: string; secretHash: Buffer; keepSid: string },
+  ): Promise<{ credentialId: string; ended: string[] }> {
+    const done = await one<{ id: string }>(db, 'SELECT password_change($1, $2, $3) AS id', [
+      a.identityId,
+      a.secretHash,
+      a.keepSid,
+    ]);
+    const res = await db.query<{ sid: string }>(
+      `SELECT sid FROM auth_session
+        WHERE identity_id = $1 AND revoked_at = now()
+          AND revoke_reason IN ('password_changed', 'credential_revoked')`,
+      [a.identityId],
+    );
+    return { credentialId: done!.id, ended: res.rows.map((r) => r.sid) };
+  }
+
   /** Appends to auth_event, in the caller's transaction or on its own. */
   async event(e: AuthEvent, db: Db = this.db.asDb()): Promise<void> {
     await db.query(
@@ -371,6 +551,35 @@ export class IdentityRepository {
         e.detail ?? {},
       ],
     );
+  }
+}
+
+/** One of an identity's live identifiers, as the account centre lists it. */
+export interface IdentifierRow {
+  id: string;
+  kind: 'email' | 'phone';
+  value: string;
+  verified: boolean;
+  primary: boolean;
+  addedAt: Date;
+}
+
+/** What the account centre shows about an identity. */
+export interface Profile {
+  identityId: string;
+  status: IdentityStatus;
+  displayName: string | null;
+  locale: string;
+  createdAt: Date;
+  /** When the live password was set; null when there is none (Google or Apple only). */
+  passwordSetAt: Date | null;
+  upstreams: ('oauth_google' | 'oauth_apple')[];
+}
+
+/** Removing it would leave the identity with no verified identifier. */
+export class LastIdentifier extends Error {
+  constructor() {
+    super('an identity keeps at least one verified identifier');
   }
 }
 

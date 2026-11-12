@@ -118,6 +118,7 @@ export class LoginController {
     @Query('upstream') upstream: unknown,
     @Query('upstream_error') upstreamError: unknown,
     @Query('upstream_signup') upstreamSignup: unknown,
+    @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
     const challenge = parse(Challenge, raw);
@@ -126,6 +127,18 @@ export class LoginController {
     if (request.skip) {
       await this.singleSignOn(reply, challenge, request);
       return;
+    }
+
+    // "Confirm it's you": a re-authentication for a member the client names (id_token_hint,
+    // verified by Hydra). No identifier screen: straight to the way that identity signs in.
+    const confirming = confirmSubject(request);
+    if (confirming && upstream === undefined) {
+      const id = await this.identities.primaryIdentifier(confirming);
+      if (id) {
+        const seen = { ip: req.ip, userAgent: req.headers['user-agent'] ?? null };
+        await this.identify({ reply, challenge, request, id, seen }, id.value);
+        return;
+      }
     }
     if (typeof upstreamSignup === 'string' && upstreamSignup.length <= 100) {
       const pending = await this.signups.peekUpstream(upstreamSignup, challenge);
@@ -521,6 +534,17 @@ export class LoginController {
     // The reset was the way out the lockout screen offered; it lifts the lockout.
     await this.throttle.lift(ctx.id.value);
     // Signed in already; the member is told the password changed, then continues to the client.
+    const confirming = confirmSubject(ctx.request);
+    if (confirming && confirming !== done.identityId) {
+      await this.hydra.rejectLogin(ctx.challenge, 'login_required', 'Signed in as someone else.');
+      await renderError(
+        ctx.reply,
+        409,
+        'That is a different account',
+        'Go back and sign in again.',
+      );
+      return;
+    }
     const next = await this.signIn.acceptTo(ctx.reply, ctx.challenge, ctx.request, ctx.seen, {
       identityId: done.identityId,
       credentialId: done.credentialId,
@@ -635,8 +659,20 @@ export class LoginController {
     }
   }
 
-  private accept(ctx: Ctx, a: Authenticated): Promise<void> {
-    return this.signIn.accept(ctx.reply, ctx.challenge, ctx.request, ctx.seen, a);
+  private async accept(ctx: Ctx, a: Authenticated): Promise<void> {
+    // A re-authentication confirms the member it was asked for, never someone else.
+    const confirming = confirmSubject(ctx.request);
+    if (confirming && confirming !== a.identityId) {
+      await this.hydra.rejectLogin(ctx.challenge, 'login_required', 'Signed in as someone else.');
+      await renderError(
+        ctx.reply,
+        409,
+        'That is a different account',
+        'Go back and confirm it is you with the account you were signed in to.',
+      );
+      return;
+    }
+    await this.signIn.accept(ctx.reply, ctx.challenge, ctx.request, ctx.seen, a);
   }
 
   private journalFailure(
@@ -712,7 +748,7 @@ export class LoginController {
     return render(
       ctx.reply,
       'password',
-      'Welcome back',
+      confirmSubject(ctx.request) ? "Confirm it's you" : 'Welcome back',
       {
         ...page(ctx.reply, ctx.challenge, ctx.request),
         identifier: ctx.id.value,
@@ -874,9 +910,19 @@ export function wantsCreate(request: LoginRequest): boolean {
   }
 }
 
+/**
+ * The member a re-authentication is for: the `sub` of the client's id_token_hint, which Hydra
+ * verified. Null for an ordinary sign-in.
+ */
+export function confirmSubject(request: LoginRequest): string | null {
+  const sub = request.oidc_context?.id_token_hint_claims?.sub;
+  return typeof sub === 'string' && sub.length > 0 ? sub : null;
+}
+
 /** What every sign-in screen carries: the challenge, a CSRF token, and who is asking. */
 function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
   return {
+    confirm: confirmSubject(request) !== null,
     challenge,
     clientName: clientName(request.client),
     // The way back: cancels the sign-in, so the client hears access_denied.
