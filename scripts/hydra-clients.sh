@@ -4,7 +4,8 @@
 # the file's definition, so the files are the registry of record.
 #
 # CLIENTS_DIR picks another set: a deployment's are deploy/hydra/clients.prod/, whose
-# ${GSN_WEB_ORIGIN} and ${GSN_API_URL} are filled in from the environment (envsubst).
+# ${GSN_WEB_ORIGIN}, ${GSN_API_URL} and ${UNI_AUTH_HOST} are filled in from the environment
+# (envsubst).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ADMIN="${HYDRA_ADMIN_URL:-http://127.0.0.1:4445}"
@@ -14,9 +15,9 @@ DIR="${CLIENTS_DIR:-deploy/hydra/clients}"
 
 for file in "$DIR"/*.json; do
   # Only the named variables: a stray $ in a definition stays as written.
-  body=$(envsubst '${GSN_WEB_ORIGIN} ${GSN_API_URL}' <"$file")
+  body=$(envsubst '${GSN_WEB_ORIGIN} ${GSN_API_URL} ${UNI_AUTH_HOST}' <"$file")
   if grep -q '\${' <<<"$body"; then
-    echo "$file: unfilled placeholder (set GSN_WEB_ORIGIN and GSN_API_URL)" >&2
+    echo "$file: unfilled placeholder (set GSN_WEB_ORIGIN, GSN_API_URL and UNI_AUTH_HOST)" >&2
     exit 1
   fi
   id=$(jq -r .client_id <<<"$body")

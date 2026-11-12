@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { AccountController } from './account/account.controller';
+import { AccountOidc } from './account/account-oidc';
+import { AccountSessions } from './account/account-sessions';
 import { CsrfGuard } from './common/csrf.guard';
 import { PageErrorFilter } from './common/page-error.filter';
 import { ConsentController } from './flows/consent.controller';
@@ -35,6 +38,7 @@ import { Upstream } from './upstream/upstream.service';
     LogoutController,
     HooksController,
     SystemController,
+    AccountController,
   ],
   providers: [
     HydraAdmin,
@@ -53,6 +57,8 @@ import { Upstream } from './upstream/upstream.service';
     ServiceToken,
     IdentityNotices,
     Upstream,
+    AccountOidc,
+    AccountSessions,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

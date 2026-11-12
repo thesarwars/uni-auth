@@ -1,0 +1,25 @@
+<% layout('./layout') %>
+<h1 id="title">Personal info</h1>
+<p class="lede">How you appear, and the language your <%= it.providerName %> screens and emails use. Apps you sign in to keep their own profile.</p>
+<section class="panel" aria-labelledby="h-details">
+  <h2 id="h-details">Your details</h2>
+  <form method="post" action="/account/personal">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <div class="field">
+      <label for="display_name">Name</label>
+      <input id="display_name" class="text" name="display_name" type="text" autocomplete="name" maxlength="200" value="<%= it.profile.displayName || '' %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="profile-error"<% } %>>
+    </div>
+    <div class="field">
+      <label for="locale">Language</label>
+      <select id="locale" class="text" name="locale">
+<% it.locales.forEach(function (l) { %>
+        <option value="<%= l.tag %>"<% if (l.tag === it.profile.locale) { %> selected<% } %>><%= l.label %></option>
+<% }) %>
+      </select>
+    </div>
+<% if (it.error) { %>
+    <p id="profile-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p>
+<% } %>
+    <button type="submit" class="btn">Save</button>
+  </form>
+</section>

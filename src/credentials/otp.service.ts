@@ -4,7 +4,8 @@ import { env } from '../config/env';
 import { one, type Db } from '../db/database.service';
 import type { Identifier } from '../identity/identifier';
 
-export type OtpPurpose = 'sign_in' | 'recovery' | 'signup';
+/** add_identifier: proving an address a signed-in member adds in the account centre. */
+export type OtpPurpose = 'sign_in' | 'recovery' | 'signup' | 'add_identifier';
 export type OtpChannel = 'email' | 'whatsapp';
 
 export const CODE_LENGTH = 6;
@@ -43,7 +44,15 @@ export type SendOutcome =
   | { kind: 'rate_limited'; availableAt: Date };
 
 export type VerifyOutcome =
-  | { kind: 'verified'; otpId: string; identityId: string | null; purpose: OtpPurpose }
+  | {
+      kind: 'verified';
+      otpId: string;
+      identityId: string | null;
+      purpose: OtpPurpose;
+      /** The address the code went to, which is what it proved. */
+      destination: string;
+      channel: OtpChannel;
+    }
   | { kind: 'invalid'; remaining: number; view: CodeView }
   | { kind: 'locked'; until: Date }
   | { kind: 'expired' }
@@ -160,7 +169,14 @@ export class OtpService {
         "UPDATE otp_challenge SET status = 'verified', attempt_count = attempt_count + 1 WHERE id = $1",
         [row.id],
       );
-      return { kind: 'verified', otpId: row.id, identityId: row.identity_id, purpose: row.purpose };
+      return {
+        kind: 'verified',
+        otpId: row.id,
+        identityId: row.identity_id,
+        purpose: row.purpose,
+        destination: row.destination,
+        channel: row.channel,
+      };
     }
 
     // The trigger turns the attempt that reaches the cap into a thirty-minute lock.

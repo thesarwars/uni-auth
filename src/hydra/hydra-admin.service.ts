@@ -28,6 +28,13 @@ const LoginRequest = z.object({
   session_id: z.string().nullish(),
   /** The authorize URL that started the flow; following it again starts a fresh one. */
   request_url: z.string().nullish(),
+  /**
+   * id_token_hint_claims: the claims of an ID token the client sent as id_token_hint, which
+   * Hydra has verified it issued - how a re-authentication names who it is for.
+   */
+  oidc_context: z
+    .object({ id_token_hint_claims: z.record(z.string(), z.unknown()).nullish() })
+    .nullish(),
 });
 export type LoginRequest = z.infer<typeof LoginRequest>;
 

@@ -27,7 +27,7 @@ export class EmailSender {
   async sendCode(
     to: string,
     code: string,
-    purpose: 'sign_in' | 'recovery' | 'signup',
+    purpose: 'sign_in' | 'recovery' | 'signup' | 'add_identifier',
   ): Promise<void> {
     const minutes = Math.round(env.OTP_TTL_SECONDS / 60);
     const what =
@@ -35,7 +35,9 @@ export class EmailSender {
         ? 'reset your password'
         : purpose === 'signup'
           ? 'create your account'
-          : 'sign in';
+          : purpose === 'add_identifier'
+            ? `add this email address to your ${env.PROVIDER_NAME} account`
+            : 'sign in';
     const subject = `Your ${env.PROVIDER_NAME} code: ${code}`;
     const text =
       `Your code to ${what} is ${code}.\n\n` +
@@ -54,4 +56,41 @@ export class EmailSender {
     }
     await this.transport.sendMail({ from: env.SMTP_FROM, to, subject, text, html });
   }
+
+  /**
+   * A security notice: something changed on the account (account-plan.md section 3). Always
+   * sent, never optional. Best effort: the change has already happened, so a failed send is
+   * logged, not thrown.
+   */
+  async sendNotice(to: string, subject: string, lines: string[]): Promise<void> {
+    const footer =
+      `If this wasn't you, sign in to your ${env.PROVIDER_NAME} account, change your password ` +
+      `and check your email addresses and phone numbers.`;
+    const text = [...lines, '', footer].join('\n');
+    const html =
+      lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('') +
+      `<p style="color:#666;font-size:13px">${escapeHtml(footer)}</p>`;
+    if (!this.transport) {
+      this.logger.warn(`EMAIL_DELIVERY=log; notice to ${to}: ${subject}`);
+      this.outbox.notice({ to, subject, text });
+      return;
+    }
+    try {
+      await this.transport.sendMail({
+        from: env.SMTP_FROM,
+        to,
+        subject: `${env.PROVIDER_NAME}: ${subject}`,
+        text,
+        html,
+      });
+    } catch (err) {
+      this.logger.error(`could not send a notice to ${to}: ${(err as Error).message}`);
+    }
+  }
 }
+
+const escapeHtml = (s: string): string =>
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+  );

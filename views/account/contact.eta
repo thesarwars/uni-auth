@@ -1,0 +1,52 @@
+<% layout('./layout') %>
+<% var emails = it.identifiers.filter(function (r) { return r.kind === 'email'; }); var phones = it.identifiers.filter(function (r) { return r.kind === 'phone'; }); var verified = it.identifiers.filter(function (r) { return r.verified; }).length; %>
+<h1 id="title">Email and phone</h1>
+<p class="lede">The addresses you sign in with and get codes at. Your primary email is where we send security notices.</p>
+<% if (it.error) { %><p id="contact-error" class="flash bad" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p><% } %>
+<% [['email', 'Email addresses', emails], ['phone', 'Phone numbers', phones]].forEach(function (group) { if (group[0] === 'phone' && !it.phones && !phones.length) return; %>
+<section class="panel" aria-labelledby="h-<%= group[0] %>">
+  <h2 id="h-<%= group[0] %>"><%= group[1] %></h2>
+<% if (group[2].length) { %>
+  <ul class="rows">
+<% group[2].forEach(function (r) { %>
+    <li>
+      <div class="what">
+        <span class="value"><%= r.value %></span>
+        <span class="tags"><% if (r.primary) { %><span class="tag">Primary</span><% } %><% if (!r.verified) { %><span class="tag">Not verified</span><% } %></span>
+      </div>
+      <div class="actions">
+<% if (r.verified && !r.primary) { %>
+        <form method="post" action="/account/contact/primary">
+          <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+          <input type="hidden" name="id" value="<%= r.id %>">
+          <button type="submit" class="link">Make primary<span class="sr"> <%= r.value %></span></button>
+        </form>
+<% } %>
+<% if (verified > 1 || !r.verified) { %>
+        <form method="post" action="/account/contact/remove">
+          <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+          <input type="hidden" name="id" value="<%= r.id %>">
+          <button type="submit" class="link danger">Remove<span class="sr"> <%= r.value %></span></button>
+        </form>
+<% } %>
+      </div>
+    </li>
+<% }) %>
+  </ul>
+<% } else { %>
+  <p class="note">None yet.</p>
+<% } %>
+<% if (group[0] === 'email' || it.phones) { %>
+  <form method="post" action="/account/contact/add" novalidate>
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="kind" value="<%= group[0] %>">
+    <div class="field">
+      <label for="add-<%= group[0] %>"><%= group[0] === 'email' ? 'Add an email address' : 'Add a phone number' %></label>
+      <input id="add-<%= group[0] %>" class="text" name="value" type="<%= group[0] === 'email' ? 'email' : 'tel' %>" autocomplete="<%= group[0] === 'email' ? 'email' : 'tel' %>" autocapitalize="none" spellcheck="false" required value="<%= it.adding === group[0] ? it.typed : '' %>"<% if (group[0] === 'phone') { %> placeholder="+44 7700 900123"<% } %><% if (it.adding === group[0] && it.error) { %> aria-invalid="true" aria-describedby="contact-error"<% } %>>
+      <p class="hint">We'll send it a code to confirm it's yours.</p>
+    </div>
+    <button type="submit" class="btn secondary">Send code</button>
+  </form>
+<% } %>
+</section>
+<% }) %>

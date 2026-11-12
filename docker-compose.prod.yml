@@ -110,6 +110,8 @@ services:
       GSN_WEB_ORIGIN: ${GSN_WEB_ORIGIN}
       GSN_API_URL: ${GSN_API_URL:?set GSN_API_URL in .env}
       UNI_AUTH_SERVICE_SECRET: ${UNI_AUTH_SERVICE_SECRET:?run scripts/prod-secrets.sh}
+      ENTITY_AUTH_ACCOUNT_SECRET: ${ENTITY_AUTH_ACCOUNT_SECRET:?run scripts/prod-secrets.sh}
+      UNI_AUTH_HOST: ${UNI_AUTH_HOST}
     depends_on:
       identity-db: { condition: service_healthy }
       hydra: { condition: service_healthy }
@@ -132,6 +134,7 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET:?run scripts/prod-secrets.sh}
       HYDRA_HOOK_SECRET: ${HYDRA_HOOK_SECRET}
       UNI_AUTH_SERVICE_SECRET: ${UNI_AUTH_SERVICE_SECRET}
+      ENTITY_AUTH_ACCOUNT_SECRET: ${ENTITY_AUTH_ACCOUNT_SECRET}
       IDENTITY_NOTICE_URL: ${GSN_API_URL}/v1/uni-auth/identity-notices
       PROVIDER_NAME: ${PROVIDER_NAME:-entity-auth}
       HELP_URL: ${HELP_URL:-}

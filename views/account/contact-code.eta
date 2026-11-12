@@ -1,0 +1,27 @@
+<% layout('./layout') %>
+<h1 id="title">Check <%= it.channel === 'email' ? 'your email' : 'WhatsApp' %></h1>
+<p class="lede">Enter the <%= it.codeLength %>-digit code we just sent<% if (it.destination) { %> to <strong><%= it.destination %></strong><% } %> to add it to your account.</p>
+<section class="panel" aria-label="Code">
+  <form method="post" action="/account/contact/verify">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="otp_id" value="<%= it.otpId %>">
+    <input type="hidden" name="destination" value="<%= it.destination %>">
+    <input type="hidden" name="kind" value="<%= it.kind || 'email' %>">
+    <div class="code"<% if (it.error) { %> data-invalid<% } %>>
+      <label for="code" class="sr"><%= it.codeLength %>-digit code</label>
+      <input id="code" class="text" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="<%= it.codeLength %>" data-length="<%= it.codeLength %>" required autofocus<% if (it.error) { %> aria-invalid="true" aria-describedby="code-error"<% } %>>
+<% if (it.error) { %>
+      <p id="code-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></span></p>
+<% } %>
+    </div>
+    <button type="submit" name="action" value="verify_code" class="btn">Add it</button>
+  </form>
+<% if (it.destination) { %>
+  <form method="post" action="/account/contact/add" class="body">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="kind" value="<%= it.kind || 'email' %>">
+    <input type="hidden" name="value" value="<%= it.destination %>">
+    <p class="hint">Didn't get it? <button type="submit" class="link">Send a new code</button> · <a class="link" href="/account/contact">Cancel</a></p>
+  </form>
+<% } %>
+</section>
