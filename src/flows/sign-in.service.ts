@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import type { FastifyReply } from 'fastify';
 import { redirect, renderError } from '../common/pages';
 import { env } from '../config/env';
 import { Database } from '../db/database.service';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { IdentityRepository, type CredentialKind } from '../identity/identity.repository';
+import { RedisService } from '../redis/redis.service';
 
 export interface Seen {
   ip: string;
@@ -31,7 +33,19 @@ export class SignIn {
     private readonly hydra: HydraAdmin,
     private readonly db: Database,
     private readonly identities: IdentityRepository,
+    private readonly redis: RedisService,
   ) {}
+
+  /**
+   * Where a sign-in that already finished sent the browser, for a form sent twice (a double
+   * click, Enter and a click, Back and resubmit). Hydra's login challenges are stateless, so the
+   * second copy would otherwise run again: a code already spent reads as expired, and the member
+   * is told their sign-up failed when it worked. The answer is Hydra's own URL, which only the
+   * browser that started the flow can use (its CSRF cookie).
+   */
+  async finished(challenge: string): Promise<string | null> {
+    return this.redis.client.get(doneKey(challenge));
+  }
 
   async accept(
     reply: FastifyReply,
@@ -99,7 +113,7 @@ export class SignIn {
       return null;
     }
 
-    return this.hydra.acceptLogin(challenge, {
+    const to = await this.hydra.acceptLogin(challenge, {
       subject: a.identityId,
       remember: true,
       remember_for: env.REMEMBER_SECONDS,
@@ -109,5 +123,13 @@ export class SignIn {
       amr: a.amr,
       context: { auth_time: Math.floor(Date.now() / 1000) },
     });
+    await this.redis.client.set(doneKey(challenge), to, 'EX', DONE_SECONDS);
+    return to;
   }
 }
+
+/** Long enough for any repeat of the same form; the challenge itself is gone well before. */
+const DONE_SECONDS = 5 * 60;
+
+const doneKey = (challenge: string): string =>
+  `uni-auth:login-done:${createHash('sha256').update(challenge).digest('base64url')}`;

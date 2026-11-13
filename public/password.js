@@ -7,7 +7,8 @@
  *     server applies
  *     (src/credentials/password.service.ts checkPassword);
  *   - "Confirm password" says whether the two match, green or red;
- *   - the code field is shown as one box per digit, and its button waits for every digit.
+ *   - the code field is shown as one box per digit, and its button waits for every digit;
+ *   - a form is sent once: a second click or Enter while the first is on its way does nothing.
  * The only script these pages may run (Content-Security-Policy: script-src 'self').
  */
 (function () {
@@ -24,6 +25,40 @@
       return /[^\p{L}\s]/u.test(pw);
     },
   };
+
+  // Send each form once. A second copy of the same form (a double click, Enter then a click) used
+  // to reach the server after the first had already spent the code, and read as "expired". The
+  // server also answers a repeat with where the first went (SignIn.finished); this saves the trip.
+  document.querySelectorAll('form').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (form.getAttribute('data-sending')) {
+        event.preventDefault();
+        return;
+      }
+      form.setAttribute('data-sending', 'true');
+      form.setAttribute('aria-busy', 'true');
+      // After this event, so the clicked button's name and value are still sent with the form.
+      var button = event.submitter;
+      if (button) {
+        setTimeout(function () {
+          button.disabled = true;
+          button.setAttribute('data-sent', 'true');
+        }, 0);
+      }
+    });
+  });
+  // Back to a page the browser kept: its forms can be sent again.
+  window.addEventListener('pageshow', function (event) {
+    if (!event.persisted) return;
+    document.querySelectorAll('form[data-sending]').forEach(function (form) {
+      form.removeAttribute('data-sending');
+      form.removeAttribute('aria-busy');
+    });
+    document.querySelectorAll('button[data-sent]').forEach(function (button) {
+      button.removeAttribute('data-sent');
+      button.disabled = false;
+    });
+  });
 
   // Show / hide, on every password field that has a reveal button.
   document.querySelectorAll('button[data-reveal]').forEach(function (button) {

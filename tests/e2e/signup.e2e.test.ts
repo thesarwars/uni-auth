@@ -143,6 +143,36 @@ describe('create an account with an email or phone', () => {
     expect((await landed(g)).sub).toBe(at.sub);
   });
 
+  it('sends a code form sent twice where the first went, not to "expired"', async () => {
+    const email = fresh();
+    const f = await toSignup(email);
+    const codePage = await post(f, { action: 'signup', password: PASSWORD, confirm: PASSWORD });
+    const fields = {
+      ...formFields(codePage.html),
+      action: 'verify_code',
+      otp_id: otpId(codePage),
+      code: outbox.last(email)!.code,
+    };
+
+    // A double click: the same form, twice. The browser only follows the second answer.
+    const first = await f.b.post(`${APP}/login`, fields);
+    const second = await f.b.post(`${APP}/login`, fields);
+    expect(first.status).toBe(303);
+    expect(second.status).toBe(303);
+    expect(second.location).toBe(first.location);
+    expect(second.html).not.toContain('expired');
+
+    f.page = second;
+    const at = await landed(f);
+    const signIns = await sql(
+      "SELECT 1 FROM auth_event WHERE identity_id = $1 AND kind = 'sign_in' AND outcome = 'success'",
+      [at.sub],
+    );
+    // The repeat did nothing: one account, one sign-in.
+    expect(await identities(email)).toHaveLength(1);
+    expect(signIns).toHaveLength(1);
+  });
+
   it('creates an account on a phone number, proved over WhatsApp', async () => {
     const phone = `+4477008${String(Date.now()).slice(-5)}`;
     const f = await start();
@@ -279,11 +309,15 @@ describe('create an account with Google or Apple', () => {
     const confirm = f.page.html;
     await post(f, { action: 'upstream_signup' });
     expect(f.page.status).toBe(303);
+    // The same confirmation sent again (a double click) goes where the first went, and makes
+    // nothing new.
     const again = await f.b.post(`${APP}/login`, {
       ...formFields(confirm),
       action: 'upstream_signup',
     });
-    expect(again.html).toContain('That took too long');
+    expect(again.status).toBe(303);
+    expect(again.location).toBe(f.page.location);
+    expect(await identities(email)).toHaveLength(1);
   });
 
   it('offers nothing for an email Google has not verified', async () => {
