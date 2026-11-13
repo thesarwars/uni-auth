@@ -1,5 +1,6 @@
-import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -21,21 +22,68 @@ const TYPES: Record<string, string> = {
  */
 const SKIP = new Set(['icon_blackbg.png']);
 
-function load(): Map<string, { type: string; body: Buffer }> {
-  const files = new Map<string, { type: string; body: Buffer }>();
+type Asset = { type: string; body: Buffer; version: string };
+
+const versionOf = (body: Buffer | string): string =>
+  createHash('sha256').update(body).digest('hex').slice(0, 12);
+
+function load(): Map<string, Asset> {
+  const files = new Map<string, Asset>();
   for (const dir of ['', 'icons', 'clients']) {
     const at = join(PUBLIC, dir);
     if (!existsSync(at)) continue;
     for (const name of readdirSync(at)) {
       const type = TYPES[name.split('.').pop() ?? ''];
       if (!type || SKIP.has(name)) continue;
-      files.set(dir ? `${dir}/${name}` : name, { type, body: readFileSync(join(at, name)) });
+      const body = readFileSync(join(at, name));
+      files.set(dir ? `${dir}/${name}` : name, { type, body, version: versionOf(body) });
     }
+  }
+  // The stylesheet names icons and fonts itself: those links carry versions too, and its own
+  // version is taken after, so a changed icon also changes the stylesheet's URL.
+  for (const [key, file] of files) {
+    if (!key.endsWith('.css')) continue;
+    const css = file.body
+      .toString('utf8')
+      .replace(
+        /url\(\/assets\/([^)'"?]+)\)/g,
+        (_, name: string) => `url(${versioned(files, name)})`,
+      );
+    files.set(key, { ...file, body: Buffer.from(css), version: versionOf(css) });
   }
   return files;
 }
 
+function versioned(files: Map<string, Asset>, name: string): string {
+  const file = files.get(name);
+  return file ? `/assets/${name}?v=${file.version}` : `/assets/${name}`;
+}
+
 const FILES = load();
+const PASSWORD_JS = readFileSync(join(PUBLIC, 'password.js'), 'utf8');
+const PASSWORD_JS_VERSION = versionOf(PASSWORD_JS);
+
+/**
+ * The URL a page links an asset by: /assets/<name>?v=<hash of its contents>. A deploy that
+ * changes a file changes its URL, so browsers fetch it at once instead of using a cached copy
+ * of the old one - which, beside a new password.js, made screens look half updated. Templates
+ * call it as asset('...') (src/common/eta.ts).
+ */
+export function assetUrl(name: string): string {
+  if (name === 'password.js') return `/assets/password.js?v=${PASSWORD_JS_VERSION}`;
+  return versioned(FILES, name);
+}
+
+/** Every asset's URL, for the templates' asset() (built once: the files never change at run time). */
+export function assetUrls(): Record<string, string> {
+  const urls: Record<string, string> = { 'password.js': assetUrl('password.js') };
+  for (const name of FILES.keys()) urls[name] = assetUrl(name);
+  return urls;
+}
+
+/** A versioned URL that names the current file can be cached for good; anything else briefly. */
+const cacheFor = (asked: unknown, current: string): string =>
+  asked === current ? 'public, max-age=31536000, immutable' : 'public, max-age=300';
 
 /**
  * The apps a sign-in screen can show the logo of: the Hydra client's metadata.product names it,
@@ -44,7 +92,7 @@ const FILES = load();
  */
 export function clientLogo(product: unknown): string | null {
   return typeof product === 'string' && FILES.has(`clients/${product}.png`)
-    ? `/assets/clients/${product}.png`
+    ? assetUrl(`clients/${product}.png`)
     : null;
 }
 
@@ -55,36 +103,39 @@ export function clientLogo(product: unknown): string | null {
  */
 @Controller('assets')
 export class AssetsController {
-  private readonly passwordJs = readFileSync(join(PUBLIC, 'password.js'), 'utf8');
-
   @Get('password.js')
-  password(@Res() reply: FastifyReply): FastifyReply {
+  password(@Query('v') v: unknown, @Res() reply: FastifyReply): FastifyReply {
     return reply
       .header('content-type', 'text/javascript; charset=utf-8')
-      .header('cache-control', 'public, max-age=300')
-      .send(this.passwordJs);
+      .header('cache-control', cacheFor(v, PASSWORD_JS_VERSION))
+      .send(PASSWORD_JS);
   }
 
   @Get(':name')
-  top(@Param('name') name: string, @Res() reply: FastifyReply): FastifyReply {
-    return this.send(name, reply);
+  top(
+    @Param('name') name: string,
+    @Query('v') v: unknown,
+    @Res() reply: FastifyReply,
+  ): FastifyReply {
+    return this.send(name, v, reply);
   }
 
   @Get(':dir/:name')
   nested(
     @Param('dir') dir: string,
     @Param('name') name: string,
+    @Query('v') v: unknown,
     @Res() reply: FastifyReply,
   ): FastifyReply {
-    return this.send(`${dir}/${name}`, reply);
+    return this.send(`${dir}/${name}`, v, reply);
   }
 
-  private send(key: string, reply: FastifyReply): FastifyReply {
+  private send(key: string, v: unknown, reply: FastifyReply): FastifyReply {
     const file = FILES.get(key);
     if (!file) throw new NotFoundException();
     return reply
       .header('content-type', file.type)
-      .header('cache-control', 'public, max-age=86400')
+      .header('cache-control', cacheFor(v, file.version))
       .send(file.body);
   }
 }

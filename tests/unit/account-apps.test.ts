@@ -29,7 +29,11 @@ describe('the account centre app list', () => {
       }),
     ]);
     expect(apps).toEqual([
-      { name: 'Go Style Network', url: 'https://gsn.gostyle.uk', logo: '/assets/clients/gsn.png' },
+      {
+        name: 'Go Style Network',
+        url: 'https://gsn.gostyle.uk',
+        logo: expect.stringMatching(/^\/assets\/clients\/gsn\.png\?v=[0-9a-f]{12}$/),
+      },
     ]);
   });
 

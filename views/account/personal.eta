@@ -13,12 +13,12 @@
     <li><a class="row" href="/account/personal/edit#display_name">
       <span class="k">Name</span>
       <span class="v"><span class="val"><%= it.profile.displayName || 'Not set' %></span></span>
-      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
     </a></li>
     <li><a class="row" href="/account/personal/edit#locale">
       <span class="k">Language</span>
       <span class="v"><span class="val"><%= it.language %></span></span>
-      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
     </a></li>
   </ul>
 </section>
@@ -32,9 +32,9 @@
     <li><a class="row" href="/account/contact">
       <span class="k"><%= r.kind === 'email' ? 'Email' : 'Phone' %></span>
       <span class="v"><span class="val"><%= r.value %></span><% if (r.primary) { %><span class="tag inverse">Primary</span><% } else if (r.verified) { %><span class="tag">Verified</span><% } else { %><span class="tag bad">Not verified</span><% } %></span>
-      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
     </a></li>
 <% }) %>
   </ul>
-  <a class="panel-foot" href="/account/contact#add">Add email or phone<img src="/assets/icons/chevron-right-sm.svg" alt="" width="16" height="16"></a>
+  <a class="panel-foot" href="/account/contact#add">Add email or phone<img src="<%= asset('icons/chevron-right-sm.svg') %>" alt="" width="16" height="16"></a>
 </section>

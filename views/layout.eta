@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title><%= it.title %> · <%= it.providerName %></title>
-  <link rel="icon" type="image/svg+xml" href="/assets/entity-auth.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/entity-auth-32.png">
-  <link rel="apple-touch-icon" href="/assets/entity-auth-180.png">
-  <link rel="preload" href="/assets/geist.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/assets/entity-auth.css">
+  <link rel="icon" type="image/svg+xml" href="<%= asset('entity-auth.svg') %>">
+  <link rel="icon" type="image/png" sizes="32x32" href="<%= asset('entity-auth-32.png') %>">
+  <link rel="apple-touch-icon" href="<%= asset('entity-auth-180.png') %>">
+  <link rel="preload" href="<%= asset('geist.woff2') %>" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="<%= asset('entity-auth.css') %>">
 </head>
 <body>
 <div class="page">
   <main class="card" aria-labelledby="title">
 <% if (it.clientName && !it.plain && !it.confirm) { %>
     <div class="card-head">
-      <img src="/assets/icons/entity-mark-20.svg" alt="" width="20" height="20">
+      <img src="<%= asset('icons/entity-mark-20.svg') %>" alt="" width="20" height="20">
       <span>Sign in with <%= it.providerName %></span>
     </div>
 <% } %>
@@ -30,7 +30,7 @@
       <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
       <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
       <button type="submit" name="action" value="cancel" class="quiet" formnovalidate>
-        <img src="/assets/icons/arrow-left.svg" alt="" width="16" height="16">
+        <img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="16" height="16">
         <span>Back to <%= it.backTo %></span>
       </button>
     </form>
@@ -44,6 +44,6 @@
 <% } %>
   </footer>
 </div>
-  <script src="/assets/password.js" defer></script>
+  <script src="<%= asset('password.js') %>" defer></script>
 </body>
 </html>

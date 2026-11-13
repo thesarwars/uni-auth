@@ -5,23 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title><%= it.title %> · <%= it.providerName %> Account</title>
-  <link rel="icon" type="image/svg+xml" href="/assets/entity-auth.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/entity-auth-32.png">
-  <link rel="apple-touch-icon" href="/assets/entity-auth-180.png">
-  <link rel="preload" href="/assets/geist.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/assets/entity-auth.css">
+  <link rel="icon" type="image/svg+xml" href="<%= asset('entity-auth.svg') %>">
+  <link rel="icon" type="image/png" sizes="32x32" href="<%= asset('entity-auth-32.png') %>">
+  <link rel="apple-touch-icon" href="<%= asset('entity-auth-180.png') %>">
+  <link rel="preload" href="<%= asset('geist.woff2') %>" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="<%= asset('entity-auth.css') %>">
 </head>
 <body>
 <% if (it.nav) { %>
 <div class="acct">
   <header class="acct-top">
     <a class="acct-brand" href="/account">
-      <span class="name"><img src="/assets/entity-auth.svg" alt="" width="32" height="32"><%= it.providerName %></span>
+      <span class="name"><img src="<%= asset('entity-auth.svg') %>" alt="" width="32" height="32"><%= it.providerName %></span>
       <span class="area">Account</span>
     </a>
     <div class="acct-tools">
 <% if (it.help) { %>
-      <a class="help" href="<%= it.help %>"><img src="/assets/icons/help.svg" alt="Help" width="22" height="22"></a>
+      <a class="help" href="<%= it.help %>"><img src="<%= asset('icons/help.svg') %>" alt="Help" width="22" height="22"></a>
 <% } %>
       <details class="me">
         <summary aria-label="Your account: <%= it.name || it.who %>"><span class="avatar-i" aria-hidden="true"><%= it.initials %></span></summary>
@@ -43,7 +43,7 @@
     <nav class="acct-nav" aria-label="Account">
       <ul>
 <% [['home', '/account', 'Home', 'home'], ['personal', '/account/personal', 'Personal info', 'user'], ['security', '/account/security', 'Security & sign-in', 'lock']].forEach(function (n) { %>
-        <li><a href="<%= n[1] %>"<% if (it.nav === n[0]) { %> aria-current="page"<% } %>><span class="tile"><img class="off" src="/assets/icons/<%= n[3] %>.svg" alt="" width="18" height="18"><img class="on" src="/assets/icons/<%= n[3] %>-on.svg" alt="" width="18" height="18"></span><%= n[2] %></a></li>
+        <li><a href="<%= n[1] %>"<% if (it.nav === n[0]) { %> aria-current="page"<% } %>><span class="tile"><img class="off" src="<%= asset('icons/' + (n[3]) + '.svg') %>" alt="" width="18" height="18"><img class="on" src="<%= asset('icons/' + (n[3]) + '-on.svg') %>" alt="" width="18" height="18"></span><%= n[2] %></a></li>
 <% }) %>
       </ul>
     </nav>
@@ -74,6 +74,6 @@
 <% } %>
 </div>
 <% } %>
-  <script src="/assets/password.js" defer></script>
+  <script src="<%= asset('password.js') %>" defer></script>
 </body>
 </html>

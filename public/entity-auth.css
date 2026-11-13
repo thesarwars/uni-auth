@@ -939,10 +939,11 @@ input.text[aria-invalid='true']:focus {
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-/* The apps this account signs in to (AccountApps), under the address. */
+/* The apps this account signs in to (AccountApps), under the address: a tile each, the logo in a
+   circle with the name below, side by side and wrapping. */
 .apps {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
@@ -950,32 +951,54 @@ input.text[aria-invalid='true']:focus {
   gap: 8px;
 }
 .app {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 5px 14px 5px 5px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: 999px;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--text-primary);
+  width: 120px;
+  padding: 12px 6px;
+  border-radius: 16px;
   text-decoration: none;
+  color: var(--text-primary);
 }
 .app:hover {
-  background: var(--bg-hover);
+  background: var(--bg-surface);
 }
 .app:focus-visible {
   outline: none;
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 4px var(--ring-focus);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
-.app img {
-  border-radius: 6px;
+.app-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
 }
-.app:not(:has(img)) {
-  padding-left: 14px;
+.app:hover .app-icon {
+  background: var(--bg-page);
+}
+.app-icon img {
+  border-radius: 8px;
+}
+.app-name {
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  text-align: center;
+  overflow-wrap: anywhere;
+  /* Two lines at most, then an ellipsis. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 .flash {
   display: flex;

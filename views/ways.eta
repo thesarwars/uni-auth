@@ -11,9 +11,9 @@
 <%~ include('./_hidden', it) %>
         <input type="hidden" name="purpose" value="sign_in">
         <button type="submit" name="action" value="send_code" class="way">
-          <span class="tile"><img src="/assets/icons/<%= it.channel === 'email' ? 'mail' : 'mobile' %>.svg" alt="" width="20" height="20"></span>
+          <span class="tile"><img src="<%= asset('icons/' + (it.channel === 'email' ? 'mail' : 'mobile') + '.svg') %>" alt="" width="20" height="20"></span>
           <span class="what"><span class="label">Get a code by <%= it.channel %></span><span class="sub"><%= it.destination %></span></span>
-          <img src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+          <img src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
         </button>
       </form>
     </li>
@@ -22,9 +22,9 @@
       <form method="post" action="/login">
 <%~ include('./_hidden', it) %>
         <button type="submit" name="action" value="identify" class="way">
-          <span class="tile"><img src="/assets/icons/lock-20.svg" alt="" width="20" height="20"></span>
+          <span class="tile"><img src="<%= asset('icons/lock-20.svg') %>" alt="" width="20" height="20"></span>
           <span class="what"><span class="label">Enter your password</span></span>
-          <img src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+          <img src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
         </button>
       </form>
     </li>

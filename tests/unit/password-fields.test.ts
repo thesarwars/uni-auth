@@ -1,8 +1,8 @@
-import { Eta } from 'eta';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { createEta } from '../../src/common/eta';
 import { checkPassword, type PasswordPolicy } from '../../src/credentials/password.service';
 
 /**
@@ -12,7 +12,7 @@ import { checkPassword, type PasswordPolicy } from '../../src/credentials/passwo
  */
 
 const ROOT = join(__dirname, '..', '..');
-const eta = new Eta({ views: join(ROOT, 'views') });
+const eta = createEta(join(ROOT, 'views'));
 const script = readFileSync(join(ROOT, 'public', 'password.js'), 'utf8');
 const policy: PasswordPolicy = {
   id: 'p',

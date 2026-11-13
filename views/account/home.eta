@@ -9,7 +9,10 @@
 <% if (it.apps && it.apps.length) { %>
   <ul class="apps" aria-label="Apps you can use with this account">
 <% it.apps.forEach(function (a) { %>
-    <li><a class="app" href="<%= a.url %>"><% if (a.logo) { %><img src="<%= a.logo %>" alt="" width="20" height="20"><% } %><%= a.name %></a></li>
+    <li><a class="app" href="<%= a.url %>">
+      <span class="app-icon"><% if (a.logo) { %><img src="<%= a.logo %>" alt="" width="32" height="32"><% } else { %><span aria-hidden="true"><%= a.name.trim().charAt(0).toUpperCase() %></span><% } %></span>
+      <span class="app-name"><%= a.name %></span>
+    </a></li>
 <% }) %>
   </ul>
 <% } %>
@@ -22,15 +25,15 @@
   <ul class="rows">
 <% checks.forEach(function (c) { %>
     <li class="row">
-      <span class="tile"><img src="/assets/icons/<%= c.icon %>.svg" alt="" width="20" height="20"></span>
+      <span class="tile"><img src="<%= asset('icons/' + (c.icon) + '.svg') %>" alt="" width="20" height="20"></span>
       <span class="text"><span class="t"><%= c.t %></span><span class="s"><%= c.s %></span></span>
       <a class="btn stroke small" href="<%= c.href %>"><%= c.act %><span class="sr">: <%= c.t %></span></a>
     </li>
 <% }) %>
     <li><a class="row" href="/account/security">
-      <span class="tile"><img src="/assets/icons/shield-20.svg" alt="" width="20" height="20"></span>
+      <span class="tile"><img src="<%= asset('icons/shield-20.svg') %>" alt="" width="20" height="20"></span>
       <span class="text"><span class="t">Security &amp; sign-in</span><span class="s">How you sign in, and your password.</span></span>
-      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
     </a></li>
   </ul>
 </section>

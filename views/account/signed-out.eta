@@ -1,6 +1,6 @@
 <% layout('./layout') %>
 <div class="intro">
-  <img class="logo" src="/assets/entity-auth.svg" alt="<%= it.providerName %>" width="44" height="44">
+  <img class="logo" src="<%= asset('entity-auth.svg') %>" alt="<%= it.providerName %>" width="44" height="44">
   <h1 id="title"><%= it.heading %></h1>
 </div>
 <div class="form">
