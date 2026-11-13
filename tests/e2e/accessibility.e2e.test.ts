@@ -263,6 +263,7 @@ describe('colour contrast', () => {
     ['text-tertiary', 'bg-page', 4.5],
     ['text-placeholder', 'bg-surface', 4.5], // placeholder text in a field
     ['status-error', 'bg-surface', 4.5],
+    ['status-ok', 'bg-surface', 4.5], // rules met, passwords match
     ['status-error', 'status-error-bg', 4.5], // the "Not set" tag
     ['text-primary', 'tag-neutral', 4.5], // the "Verified" tag
     ['text-on-action', 'action-primary', 4.5],
