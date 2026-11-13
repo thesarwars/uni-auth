@@ -1,5 +1,11 @@
 <% layout('./layout') %>
-<img class="mark" src="/assets/entity-auth.svg" alt="<%= it.providerName %>" width="40" height="40">
-<h1 id="title"><%= it.heading %></h1>
-<p class="lede"><%= it.detail %></p>
-<a class="btn" href="/account/sign-in">Sign in to your account</a>
+<div class="intro">
+  <img class="logo" src="/assets/entity-auth.svg" alt="<%= it.providerName %>" width="44" height="44">
+  <h1 id="title"><%= it.heading %></h1>
+</div>
+<div class="form">
+  <p class="text-block"><%= it.detail %></p>
+  <div class="actions">
+    <a class="btn" href="/account/sign-in">Sign in to your account</a>
+  </div>
+</div>

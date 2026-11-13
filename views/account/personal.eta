@@ -1,25 +1,40 @@
 <% layout('./layout') %>
-<h1 id="title">Personal info</h1>
-<p class="lede">How you appear, and the language your <%= it.providerName %> screens and emails use. Apps you sign in to keep their own profile.</p>
-<section class="panel" aria-labelledby="h-details">
-  <h2 id="h-details">Your details</h2>
-  <form method="post" action="/account/personal">
-    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
-    <div class="field">
-      <label for="display_name">Name</label>
-      <input id="display_name" class="text" name="display_name" type="text" autocomplete="name" maxlength="200" value="<%= it.profile.displayName || '' %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="profile-error"<% } %>>
-    </div>
-    <div class="field">
-      <label for="locale">Language</label>
-      <select id="locale" class="text" name="locale">
-<% it.locales.forEach(function (l) { %>
-        <option value="<%= l.tag %>"<% if (l.tag === it.profile.locale) { %> selected<% } %>><%= l.label %></option>
+<% var rows = it.identifiers.slice().sort(function (a, b) { return (a.kind === b.kind ? 0 : a.kind === 'email' ? -1 : 1) || (b.primary - a.primary); }); %>
+<div class="page-head">
+  <h1 id="title">Personal info</h1>
+  <p>Your name, language and how <%= it.providerName %> reaches you.</p>
+</div>
+<section class="panel" aria-labelledby="h-basic">
+  <div class="panel-head">
+    <h2 id="h-basic">Basic info</h2>
+    <p>Shown in apps that use <%= it.providerName %>.</p>
+  </div>
+  <ul class="rows">
+    <li><a class="row" href="/account/personal/edit#display_name">
+      <span class="k">Name</span>
+      <span class="v"><span class="val"><%= it.profile.displayName || 'Not set' %></span></span>
+      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+    </a></li>
+    <li><a class="row" href="/account/personal/edit#locale">
+      <span class="k">Language</span>
+      <span class="v"><span class="val"><%= it.language %></span></span>
+      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+    </a></li>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-contact">
+  <div class="panel-head">
+    <h2 id="h-contact">Contact info</h2>
+    <p>Used to sign in and to send security alerts.</p>
+  </div>
+  <ul class="rows">
+<% rows.forEach(function (r) { %>
+    <li><a class="row" href="/account/contact">
+      <span class="k"><%= r.kind === 'email' ? 'Email' : 'Phone' %></span>
+      <span class="v"><span class="val"><%= r.value %></span><% if (r.primary) { %><span class="tag inverse">Primary</span><% } else if (r.verified) { %><span class="tag">Verified</span><% } else { %><span class="tag bad">Not verified</span><% } %></span>
+      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+    </a></li>
 <% }) %>
-      </select>
-    </div>
-<% if (it.error) { %>
-    <p id="profile-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p>
-<% } %>
-    <button type="submit" class="btn">Save</button>
-  </form>
+  </ul>
+  <a class="panel-foot" href="/account/contact#add">Add email or phone<img src="/assets/icons/chevron-right-sm.svg" alt="" width="16" height="16"></a>
 </section>

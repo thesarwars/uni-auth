@@ -7,7 +7,7 @@ import { checkPassword, type PasswordPolicy } from '../../src/credentials/passwo
 
 /**
  * public/password.js against the real templates: the show/hide button, the rules ticking as the
- * member types (with the server's own tests), the strength meter and the repeat check. The
+ * member types (with the server's own tests) and the repeat check. The
  * script only advises; the server's checkPassword still decides on submit.
  */
 
@@ -88,25 +88,6 @@ describe('the sign-up screen, with password.js', () => {
     expect($('#rules li .state').textContent).toBe(' (done)');
   });
 
-  it('shows strength, and never more than weak while a rule is unmet', () => {
-    const { type, $ } = screen('signup');
-    const level = () => [
-      $('#strength').getAttribute('data-level'),
-      $('#strength strong').textContent,
-    ];
-    expect($<HTMLElement>('#strength').hidden).toBe(false);
-    type('password', 'abcdefghijklmnopqrstuvwxyz');
-    expect(level()).toEqual(['1', 'Weak']);
-    type('password', 'Abcdefg1');
-    expect(level()).toEqual(['2', 'Fair']);
-    type('password', 'Abcdefgh1234');
-    expect(level()).toEqual(['3', 'Good']);
-    type('password', 'Correct-Horse-9-Battery');
-    expect(level()).toEqual(['4', 'Strong']);
-    type('password', 'Password123!');
-    expect(level()).toEqual(['1', 'Weak']);
-  });
-
   it('says whether the repeat matches', () => {
     const { type, $ } = screen('signup');
     const match = $<HTMLElement>('#match');
@@ -144,24 +125,24 @@ describe('without JavaScript', () => {
       'One uppercase letter',
       'One number or symbol',
     ]);
-    for (const el of doc.querySelectorAll('button.reveal, #strength, #match')) {
+    for (const el of doc.querySelectorAll('button.reveal, #match')) {
       expect((el as HTMLElement).hidden).toBe(true);
     }
   });
 });
 
 describe('the sign-in and new-password screens', () => {
-  it('give the sign-in password a show/hide button, and no meter', () => {
+  it('give the sign-in password a show/hide button', () => {
     const { $, window } = screen('password', {
       remaining: null,
       codeChannel: 'email',
       notice: null,
     });
     expect($<HTMLButtonElement>('button[data-reveal=password]').hidden).toBe(false);
-    expect(window.document.getElementById('strength')).toBeNull();
+    expect(window.document.getElementById('rules')).toBeNull();
   });
 
-  it('give a new password the same rules, meter and repeat check', () => {
+  it('give a new password the same rules and repeat check', () => {
     const { type, met } = screen('new-password', {
       ticket: '00000000-0000-0000-0000-000000000000',
     });

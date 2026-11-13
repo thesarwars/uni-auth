@@ -257,21 +257,23 @@ describe('colour contrast', () => {
   const pairs: [string, string, number][] = [
     ['text-primary', 'bg-surface', 4.5],
     ['text-primary', 'bg-page', 4.5],
-    ['text-primary', 'bg-subtle', 4.5], // the band under the card
     ['text-secondary', 'bg-surface', 4.5],
-    ['text-secondary', 'bg-subtle', 4.5],
-    ['text-tertiary', 'bg-surface', 4.5], // hints, rules not yet met, the footer
+    ['text-secondary', 'bg-page', 4.5], // the footer, the account centre's page text
+    ['text-tertiary', 'bg-surface', 4.5], // hints, rules not yet met
     ['text-tertiary', 'bg-page', 4.5],
+    ['text-placeholder', 'bg-surface', 4.5], // placeholder text in a field
     ['status-error', 'bg-surface', 4.5],
+    ['status-error', 'status-error-bg', 4.5], // the "Not set" tag
+    ['text-primary', 'tag-neutral', 4.5], // the "Verified" tag
     ['text-on-action', 'action-primary', 4.5],
     ['text-on-action', 'action-primary-hover', 4.5],
-    ['border-field', 'bg-surface', 3], // text inputs' and secondary buttons' edges
+    ['text-on-action', 'text-secondary', 4.5], // initials on the avatar
+    ['border-field', 'bg-surface', 3], // text inputs' and code boxes' edges
     ['status-error', 'bg-surface', 3], // an invalid field's edge
     ['border-focus', 'bg-surface', 3], // the focus ring
     ['check-done', 'bg-surface', 3], // a met rule's tick
-    ['text-on-action', 'check-done', 3], // the tick drawn on it
-    ['meter-fill', 'meter-track', 3], // a filled strength segment against an empty one
   ];
+
   for (const [fg, bg, min] of pairs) {
     it(`${fg} on ${bg} is at least ${min}:1`, () => {
       expect(t[fg], `--${fg}`).toBeDefined();

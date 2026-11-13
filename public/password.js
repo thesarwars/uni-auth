@@ -5,7 +5,6 @@
  *   - every password field gets a show/hide button;
  *   - the rules list ticks each rule as it is met, with the same tests the server applies
  *     (src/credentials/password.service.ts checkPassword);
- *   - a strength meter, which only advises: it never blocks a password the policy accepts;
  *   - "Confirm password" says whether the two match;
  *   - the code field is shown as one box per digit, and its button waits for every digit.
  * The only script these pages may run (Content-Security-Policy: script-src 'self').
@@ -24,7 +23,6 @@
       return /[^\p{L}\s]/u.test(pw);
     },
   };
-  var LEVELS = ['', 'Weak', 'Fair', 'Good', 'Strong'];
 
   // Show / hide, on every password field that has a reveal button.
   document.querySelectorAll('button[data-reveal]').forEach(function (button) {
@@ -58,7 +56,11 @@
     for (var i = 0; i < length; i++) boxes.appendChild(document.createElement('span'));
     wrap.insertBefore(boxes, code.nextSibling);
     wrap.classList.add('boxed');
-    var submit = code.form && code.form.querySelector('button[value="verify_code"]');
+    // Its button may sit outside the form, joined to it by form="..." (the screen's actions row).
+    var submit =
+      code.form &&
+      (code.form.querySelector('button[value="verify_code"]') ||
+        (code.form.id && document.querySelector('button[form="' + code.form.id + '"]')));
     var show = function () {
       code.value = code.value.replace(/\D/g, '').slice(0, length);
       var digits = code.value.split('');
@@ -87,48 +89,20 @@
   var password = document.getElementById('password');
   if (!rules || !password || password.getAttribute('autocomplete') !== 'new-password') return;
   var items = Array.prototype.slice.call(rules.querySelectorAll('li[data-rule]'));
-  var strength = document.getElementById('strength');
   var confirm = document.getElementById('confirm');
   var match = document.getElementById('match');
 
-  function score(pw) {
-    if (!pw) return 0;
-    var length = Array.from(pw).length;
-    var kinds = [/\p{Ll}/u, /\p{Lu}/u, /\p{N}/u, /[^\p{L}\p{N}\s]/u].filter(function (r) {
-      return r.test(pw);
-    }).length;
-    var s = 0;
-    if (length >= 8) s++;
-    if (length >= 12) s++;
-    if (length >= 16) s++;
-    if (kinds >= 3) s++;
-    if (kinds === 4) s++;
-    if (/(.)\1\1/u.test(pw)) s--; // aaa
-    if (/^(?:password|passw0rd|qwerty|letmein|welcome|123456|abc123)/i.test(pw)) s = 0;
-    return s <= 1 ? 1 : s === 2 ? 2 : s === 3 ? 3 : 4;
-  }
-
   function update() {
     var pw = password.value;
-    var allMet = true;
     items.forEach(function (li) {
       var test = TESTS[li.getAttribute('data-rule')];
       var met = test ? test(pw, Number(li.getAttribute('data-value'))) : false;
-      if (!met) allMet = false;
       // Typing clears the server's red marks; a rule now reads met or not yet.
       li.classList.toggle('met', met);
       li.classList.remove('unmet');
       var state = li.querySelector('.state');
       if (state) state.textContent = met ? ' (done)' : ' (not yet)';
     });
-    if (strength) {
-      var level = score(pw);
-      // A password the policy refuses is never more than weak, however long.
-      if (!allMet) level = Math.min(level, 1);
-      strength.hidden = false;
-      strength.setAttribute('data-level', String(level));
-      strength.querySelector('strong').textContent = pw ? LEVELS[level] : 'none yet';
-    }
     updateMatch();
   }
 
@@ -147,5 +121,4 @@
   password.addEventListener('input', update);
   if (confirm) confirm.addEventListener('input', updateMatch);
   if (password.value) update();
-  else if (strength) strength.hidden = false;
 })();

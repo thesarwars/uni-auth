@@ -26,6 +26,7 @@ import {
 } from '../identity/identity.repository';
 import { Throttle } from '../throttle/throttle.service';
 import { PROVIDERS, Upstream, type Provider } from '../upstream/upstream.service';
+import { clientLogo } from './assets.controller';
 import { UPSTREAM_COOKIE, type UpstreamError } from './upstream.controller';
 import { SignIn, type Authenticated, type Seen } from './sign-in.service';
 
@@ -47,6 +48,7 @@ const LoginForm = z.discriminatedUnion('action', [
     password: z.string().max(1024),
   }),
   z.object({ action: z.literal('reset'), login_challenge: Challenge, identifier: Typed }),
+  z.object({ action: z.literal('ways'), login_challenge: Challenge, identifier: Typed }),
   z.object({
     action: z.literal('send_code'),
     login_challenge: Challenge,
@@ -118,6 +120,7 @@ export class LoginController {
     @Query('upstream') upstream: unknown,
     @Query('upstream_error') upstreamError: unknown,
     @Query('upstream_signup') upstreamSignup: unknown,
+    @Query('create') create: unknown,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
@@ -154,6 +157,7 @@ export class LoginController {
     }
     await this.identifierScreen(reply, challenge, request, {
       error: upstreamReason(upstream, upstreamError),
+      create: create === '1',
     });
   }
 
@@ -213,6 +217,8 @@ export class LoginController {
         return this.password(ctx, form.password);
       case 'reset':
         return this.resetScreen(ctx);
+      case 'ways':
+        return this.waysScreen(ctx);
       case 'send_code':
         return this.sendCode(ctx, form.purpose);
       case 'verify_code':
@@ -555,6 +561,7 @@ export class LoginController {
     if (!next) return;
     await render(ctx.reply, 'password-updated', 'Password updated', {
       clientName: clientName(ctx.request.client),
+      clientLogo: clientLogo(ctx.request.client.metadata?.product),
       next,
       done: true,
     });
@@ -722,9 +729,10 @@ export class LoginController {
     reply: FastifyReply,
     challenge: string,
     request: LoginRequest,
-    state: { typed?: string; error?: string } = {},
+    state: { typed?: string; error?: string; create?: boolean } = {},
   ): FastifyReply {
-    const create = wantsCreate(request);
+    // prompt=registration, or the member chose "Create account": the same screen, worded for it.
+    const create = state.create === true || wantsCreate(request);
     return render(
       reply,
       'identifier',
@@ -864,6 +872,23 @@ export class LoginController {
     });
   }
 
+  /** "Try another way": every way this identity can sign in, to choose from. */
+  private async waysScreen(ctx: Ctx): Promise<void> {
+    const found = await this.identities.resolve(ctx.id);
+    if (!found || found.status !== 'active') {
+      await this.identify(ctx, ctx.id.value);
+      return;
+    }
+    await render(ctx.reply, 'ways', 'Choose how you want to sign in', {
+      ...page(ctx.reply, ctx.challenge, ctx.request),
+      identifier: ctx.id.value,
+      phone: ctx.id.kind === 'phone',
+      channel: ctx.id.kind === 'email' ? 'email' : 'WhatsApp',
+      destination: masked(ctx.id),
+      password: found.credentials.includes('password'),
+    });
+  }
+
   private lockoutScreen(ctx: Ctx, until: Date): FastifyReply {
     return render(
       ctx.reply,
@@ -925,10 +950,27 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
     confirm: confirmSubject(request) !== null,
     challenge,
     clientName: clientName(request.client),
+    clientLogo: clientLogo(request.client.metadata?.product),
+    clientPrivacy: webUrl(request.client.policy_uri),
+    clientTerms: webUrl(request.client.tos_uri),
+    // The deployment's own terms, for "By creating an account, you agree to ...".
+    terms: env.TERMS_URL || null,
+    privacy: env.PRIVACY_URL || null,
     // The way back: cancels the sign-in, so the client hears access_denied.
     backTo: clientName(request.client),
     csrfToken: reply.generateCsrf(),
   };
+}
+
+/** An http(s) URL a client registered, or null: anything else is never put in a link. */
+function webUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 const minutesUntil = (t: Date): number =>

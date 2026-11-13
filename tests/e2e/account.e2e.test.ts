@@ -81,7 +81,7 @@ describe('signing in to the account centre', () => {
   it('signs in through the login screens and shows the account', async () => {
     const m = await createMember();
     const { page } = await signIn(m);
-    expect(page.html).toContain('<h1 id="title">Welcome</h1>');
+    expect(page.html).toContain('<h1 id="title">Your account</h1>');
     expect(page.html).toContain(m.email);
     expect(page.html).toContain('aria-current="page"');
   });
@@ -122,13 +122,14 @@ describe('personal info', () => {
   it('saves the name and language, and journals it', async () => {
     const m = await createMember();
     const { b } = await signIn(m);
-    let page = await open(b, '/account/personal');
+    let page = await open(b, '/account/personal/edit');
     page = await postTo(b, '/account/personal', page, {
       display_name: '  Amelia   Hart ',
       locale: 'fr-FR',
     });
     expect(page.html).toContain('Your details are saved.');
-    expect(page.html).toContain('value="Amelia Hart"');
+    expect(page.html).toContain('<span class="val">Amelia Hart</span>');
+    expect(page.html).toContain('<span class="val">Français</span>');
     const [row] = await sql('SELECT display_name, locale FROM identity WHERE id = $1', [
       m.identityId,
     ]);

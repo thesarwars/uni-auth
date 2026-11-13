@@ -1,12 +1,17 @@
 <% layout('./layout') %>
-<h1 id="title">Create your account</h1>
-<p class="lede">No account uses <strong><%= it.email %></strong> yet. Create one that signs in with <%= it.upstreamName %>?</p>
-<form method="post" action="/login">
-  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
-  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
-  <input type="hidden" name="token" value="<%= it.token %>">
-  <button type="submit" name="action" value="upstream_signup" class="btn">Create account</button>
-</form>
-<div class="band">
-  <p><a class="link" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Use another way</a></p>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Create your <%= it.providerName %> account</h1>
+</div>
+<div class="form">
+  <p class="text-block">No account uses <strong><%= it.email %></strong> yet. Create one that signs in with <%= it.upstreamName %>?</p>
+  <form method="post" action="/login">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+    <input type="hidden" name="token" value="<%= it.token %>">
+    <div class="actions">
+      <a class="btn ghost" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Use another way</a>
+      <button type="submit" name="action" value="upstream_signup" class="btn">Create account</button>
+    </div>
+  </form>
 </div>

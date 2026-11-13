@@ -50,7 +50,7 @@ const DONE: Record<string, string> = {
 
 const ReturnTo = z
   .string()
-  .regex(/^\/account(\/[a-z-]*)?$/)
+  .regex(/^\/account(\/[a-z-]+){0,2}$/)
   .catch('/account');
 
 const ProfileForm = z.object({
@@ -216,9 +216,39 @@ export class AccountController {
     await this.page(reply, s, 'account/personal', 'Personal info', 'personal', {
       profile,
       identifiers,
-      locales: LOCALES,
+      language: LOCALES.find((l) => l.tag === profile.locale)?.label ?? profile.locale,
       done: flash(done),
+    });
+  }
+
+  /** Name and language: the rows of Basic info lead here. */
+  @Get('personal/edit')
+  async editPersonal(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/personal/edit');
+    if (!s) return;
+    const { profile, identifiers } = await this.load(s);
+    await this.page(reply, s, 'account/personal-edit', 'Name and language', 'personal', {
+      profile,
+      identifiers,
+      locales: LOCALES,
       error: null,
+    });
+  }
+
+  /** How the member signs in: the password, and Google or Apple when linked. */
+  @Get('security')
+  async security(
+    @Query('done') done: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/security');
+    if (!s) return;
+    const { profile, identifiers } = await this.load(s);
+    await this.page(reply, s, 'account/security', 'Security & sign-in', 'security', {
+      profile,
+      identifiers,
+      done: flash(done),
     });
   }
 
@@ -238,14 +268,13 @@ export class AccountController {
       await this.page(
         reply,
         s,
-        'account/personal',
-        'Personal info',
+        'account/personal-edit',
+        'Name and language',
         'personal',
         {
           profile: { ...profile, displayName: name },
           identifiers,
           locales: LOCALES,
-          done: null,
           error:
             name.length > 200 ? 'Use 200 characters or fewer.' : 'Choose a language from the list.',
         },
@@ -341,7 +370,7 @@ export class AccountController {
         s,
         'account/contact-code',
         'Confirm it',
-        'contact',
+        'personal',
         {
           destination: form.destination,
           kind: form.kind,
@@ -704,7 +733,7 @@ export class AccountController {
       );
       return;
     }
-    await this.render(reply, s, 'account/contact-code', 'Confirm it', 'contact', {
+    await this.render(reply, s, 'account/contact-code', 'Confirm it', 'personal', {
       destination: id.value,
       kind: id.kind,
       channel: sent.view.channel,
@@ -727,7 +756,7 @@ export class AccountController {
       s,
       'account/contact',
       'Email and phone',
-      'contact',
+      'personal',
       {
         profile,
         identifiers,
@@ -754,7 +783,7 @@ export class AccountController {
       s,
       'account/password',
       'Password',
-      'password',
+      'security',
       {
         profile,
         identifiers,
@@ -792,6 +821,8 @@ export class AccountController {
     const identifiers =
       (data.identifiers as IdentifierRow[] | undefined) ??
       (await this.identities.identifiers(s.sub));
+    const profile =
+      (data.profile as Profile | undefined) ?? (await this.identities.profile(s.sub))!;
     const who =
       identifiers.find((r) => r.primary && r.kind === 'email') ??
       identifiers.find((r) => r.primary);
@@ -799,7 +830,15 @@ export class AccountController {
       reply,
       view,
       title,
-      { ...data, nav, who: who?.value ?? '', csrfToken: reply.generateCsrf() },
+      {
+        ...data,
+        nav,
+        who: who?.value ?? '',
+        name: profile.displayName ?? '',
+        initials: initials(profile.displayName, who?.value ?? ''),
+        help: env.HELP_URL || null,
+        csrfToken: reply.generateCsrf(),
+      },
       status,
     );
   }
@@ -831,3 +870,11 @@ const phonesAccepted = (): boolean => env.WHATSAPP_DELIVERY !== 'off';
 
 const flash = (done: unknown): string | null =>
   typeof done === 'string' && Object.hasOwn(DONE, done) ? DONE[done]! : null;
+
+/** One or two letters for the avatar: from the name, else the address. */
+function initials(name: string | null, address: string): string {
+  const words = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return (words[0]![0]! + words[words.length - 1]![0]!).toUpperCase();
+  if (words.length === 1) return Array.from(words[0]!)[0]!.toUpperCase();
+  return (Array.from(address.replace(/^\+/, ''))[0] ?? '?').toUpperCase();
+}

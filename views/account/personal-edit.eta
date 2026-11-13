@@ -1,0 +1,30 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <a class="back" href="/account/personal"><img src="/assets/icons/arrow-left.svg" alt="" width="18" height="18">Personal info</a>
+  <h1 id="title">Name and language</h1>
+  <p>How you appear in apps that use <%= it.providerName %>, and the language its screens and emails use.</p>
+</div>
+<section class="panel pad" aria-label="Name and language">
+  <form method="post" action="/account/personal">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <div class="field">
+      <label for="display_name">Name</label>
+      <input id="display_name" class="text" name="display_name" type="text" autocomplete="name" maxlength="200" value="<%= it.profile.displayName || '' %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="profile-error"<% } %>>
+    </div>
+    <div class="field">
+      <label for="locale">Language</label>
+      <select id="locale" class="text" name="locale">
+<% it.locales.forEach(function (l) { %>
+        <option value="<%= l.tag %>"<% if (l.tag === it.profile.locale) { %> selected<% } %>><%= l.label %></option>
+<% }) %>
+      </select>
+    </div>
+<% if (it.error) { %>
+    <p id="profile-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p>
+<% } %>
+    <div class="actions">
+      <a class="btn ghost" href="/account/personal">Cancel</a>
+      <button type="submit" class="btn">Save</button>
+    </div>
+  </form>
+</section>

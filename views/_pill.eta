@@ -1,8 +1,6 @@
 <%/* Who is signing in, as a chip; it goes back to the first screen to change the address. */%>
-<a class="pill" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>" aria-label="<%= it.identifier %>, use a different <%= it.phone ? 'email or phone' : 'email' %>">
-  <span>
-    <span class="avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5"/><path d="M5 19.5c1.4-3.2 4-4.5 7-4.5s5.6 1.3 7 4.5"/></svg></span>
-    <span class="who"><%= it.identifier %></span>
-    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 9.5s-4.4 5-6 5-6-5-6-5"/></svg>
-  </span>
+<a class="chip" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>" aria-label="<%= it.identifier %>, use a different <%= it.phone ? 'email or phone' : 'email' %>">
+  <span class="avatar"><img src="/assets/icons/user.svg" alt="" width="14" height="14"></span>
+  <span class="who"><%= it.identifier %></span>
+  <img src="/assets/icons/chevron-down.svg" alt="" width="16" height="16">
 </a>

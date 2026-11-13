@@ -66,8 +66,8 @@ describe('the identifier screen', () => {
     const b = browser();
     const res = await identify(b, await loginPage(b), 'nobody-here@example.com');
     expect(res.status).toBe(200);
-    expect(res.html).toContain('Create your account');
-    expect(res.html).toContain('No account uses this email address yet.');
+    expect(res.html).toContain('Create a password');
+    expect(res.html).toMatch(/There's no .+ account for this email address yet\./);
     expect(res.html).toContain('<span class="who">nobody-here@example.com</span>');
   });
 
@@ -146,13 +146,13 @@ describe('the password screen', () => {
     }
     expect(seen[0]).toContain('That password isn&#39;t right.');
     expect(seen[0]).not.toContain('left before');
-    expect(seen[2]).toContain('2 attempts left before sign-in is paused.');
-    expect(seen[3]).toContain('1 attempt left before sign-in is paused.');
+    expect(seen[2]).toContain('2 tries left before a short pause.');
+    expect(seen[3]).toContain('1 try left before a short pause.');
 
     const fifth = await enterPassword(b, pw.html, 'wrong-password');
     expect(fifth.status).toBe(429);
     expect(fifth.html).toContain('Too many attempts');
-    expect(fifth.html).toMatch(/try again in 1[45] minutes/);
+    expect(fifth.html).toMatch(/paused for this account for 1[45] minutes/);
 
     // The right password is not even checked while the lockout holds.
     const right = await enterPassword(b, pw.html, m.password);

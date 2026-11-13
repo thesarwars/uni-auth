@@ -1,10 +1,20 @@
 <% layout('./layout') %>
-<h1 id="title">Create your account</h1>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Create a password</h1>
 <%~ include('./_pill', it) %>
-<p class="lede">No account uses this <%= it.noun %> yet. Choose a password and we'll send a code by <%= it.channel %> to confirm it's yours.</p>
-<form method="post" action="/login">
+</div>
+<div class="form">
+  <p class="text-block">There's no <%= it.providerName %> account for this <%= it.noun %> yet. Choose a password and we'll send a code by <%= it.channel %> to confirm it's yours.</p>
+  <form method="post" action="/login">
 <%~ include('./_hidden', it) %>
-  <input type="text" autocomplete="username" value="<%= it.identifier %>" hidden readonly>
+    <input type="text" autocomplete="username" value="<%= it.identifier %>" hidden readonly>
 <%~ include('./_new-password', { label: 'Password', confirmLabel: 'Confirm password', rules: it.rules, checked: it.checked, error: it.error }) %>
-  <button type="submit" name="action" value="signup" class="btn">Create account</button>
-</form>
+<% if (it.terms || it.privacy) { %>
+    <p class="legal">By creating an account, you agree to <%= it.providerName %>'s <% if (it.terms) { %><a href="<%= it.terms %>">Terms</a><% } %><% if (it.terms && it.privacy) { %> and <% } %><% if (it.privacy) { %><a href="<%= it.privacy %>">Privacy Policy</a><% } %>.</p>
+<% } %>
+    <div class="actions">
+      <button type="submit" name="action" value="signup" class="btn">Create account</button>
+    </div>
+  </form>
+</div>
