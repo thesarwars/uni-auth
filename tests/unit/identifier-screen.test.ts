@@ -1,7 +1,7 @@
-import { Eta } from 'eta';
 import { JSDOM } from 'jsdom';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { createEta } from '../../src/common/eta';
 
 /**
  * The identifier screen with and without phone numbers. WHATSAPP_DELIVERY=off (a deployment
@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
  * number posted anyway, so no code is ever made for one.
  */
 
-const eta = new Eta({ views: join(__dirname, '..', '..', 'views') });
+const eta = createEta(join(__dirname, '..', '..', 'views'));
 const base = {
   title: 't',
   providerName: 'uni-auth',

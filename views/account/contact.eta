@@ -1,7 +1,7 @@
 <% layout('./layout') %>
 <% var emails = it.identifiers.filter(function (r) { return r.kind === 'email'; }); var phones = it.identifiers.filter(function (r) { return r.kind === 'phone'; }); var verified = it.identifiers.filter(function (r) { return r.verified; }).length; %>
 <div class="page-head">
-  <a class="back" href="/account/personal"><img src="/assets/icons/arrow-left.svg" alt="" width="18" height="18">Personal info</a>
+  <a class="back" href="/account/personal"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Personal info</a>
   <h1 id="title">Email and phone</h1>
   <p>The addresses you sign in with and get codes at. Your primary email is where we send security alerts.</p>
 </div>
@@ -15,7 +15,7 @@
 <% } %>
 <% group[2].forEach(function (r) { %>
     <li class="row">
-      <span class="tile"><img src="/assets/icons/<%= r.kind === 'email' ? 'mail' : 'mobile' %>.svg" alt="" width="20" height="20"></span>
+      <span class="tile"><img src="<%= asset('icons/' + (r.kind === 'email' ? 'mail' : 'mobile') + '.svg') %>" alt="" width="20" height="20"></span>
       <span class="text"><span class="t"><span class="val"><%= r.value %></span><% if (r.primary) { %><span class="tag inverse">Primary</span><% } else if (r.verified) { %><span class="tag">Verified</span><% } else { %><span class="tag bad">Not verified</span><% } %></span></span>
       <span class="do">
 <% if (r.verified && !r.primary) { %>

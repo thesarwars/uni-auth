@@ -4,7 +4,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import cookie from '@fastify/cookie';
 import csrf from '@fastify/csrf-protection';
 import helmet from '@fastify/helmet';
-import { Eta } from 'eta';
+import { createEta } from './common/eta';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { env } from './config/env';
@@ -61,7 +61,7 @@ export async function createApp(
   });
 
   app.setViewEngine({
-    engine: { eta: new Eta({ views: VIEWS, cache: env.NODE_ENV === 'production' }) },
+    engine: { eta: createEta(VIEWS, env.NODE_ENV === 'production') },
     templates: VIEWS,
     viewExt: 'eta',
   });

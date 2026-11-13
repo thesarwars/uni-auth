@@ -1,6 +1,6 @@
 <%/* Who is signing in, as a chip; it goes back to the first screen to change the address. */%>
 <a class="chip" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>" aria-label="<%= it.identifier %>, use a different <%= it.phone ? 'email or phone' : 'email' %>">
-  <span class="avatar"><img src="/assets/icons/user.svg" alt="" width="14" height="14"></span>
+  <span class="avatar"><img src="<%= asset('icons/user.svg') %>" alt="" width="14" height="14"></span>
   <span class="who"><%= it.identifier %></span>
-  <img src="/assets/icons/chevron-down.svg" alt="" width="16" height="16">
+  <img src="<%= asset('icons/chevron-down.svg') %>" alt="" width="16" height="16">
 </a>

@@ -26,7 +26,7 @@ import {
 } from '../identity/identity.repository';
 import { Throttle } from '../throttle/throttle.service';
 import { PROVIDERS, Upstream, type Provider } from '../upstream/upstream.service';
-import { clientLogo } from './assets.controller';
+import { assetUrl, clientLogo } from './assets.controller';
 import { UPSTREAM_COOKIE, type UpstreamError } from './upstream.controller';
 import { SignIn, type Authenticated, type Seen } from './sign-in.service';
 
@@ -963,7 +963,7 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
     challenge,
     clientName: clientName(request.client),
     clientLogo: isOwn(request.client)
-      ? '/assets/entity-auth.svg'
+      ? assetUrl('entity-auth.svg')
       : clientLogo(request.client.metadata?.product),
     clientPrivacy: webUrl(request.client.policy_uri),
     clientTerms: webUrl(request.client.tos_uri),

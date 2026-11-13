@@ -252,7 +252,8 @@ describe('the only script is our own file', () => {
       expect(source, file).not.toMatch(/javascript:/i);
       for (const [tag] of source.matchAll(/<script\b[^>]*>/g)) scripts.push(`${file}: ${tag}`);
     }
-    expect(scripts).toEqual(['layout.eta: <script src="/assets/password.js" defer>']);
+    // The match stops at the '>' of the template tag that writes the versioned URL.
+    expect(scripts).toEqual([`layout.eta: <script src="<%= asset('password.js') %>`]);
   });
 
   it('serves it as JavaScript, with nosniff', async () => {
@@ -274,6 +275,33 @@ describe('the only script is our own file', () => {
     }
     for (const path of ['icon_blackbg.png', '../package.json', 'entity-auth-64.png']) {
       expect((await fetch(`${APP}/assets/${path}`)).status).toBe(404);
+    }
+  });
+});
+
+describe('asset URLs carry a version', () => {
+  it('links the stylesheet, script and icons by content hash, cached for good', async () => {
+    const page = await (await fetch(`${APP}/account/signed-out`)).text();
+    const css = /href="(\/assets\/entity-auth\.css\?v=[0-9a-f]{12})"/.exec(page)?.[1];
+    const js = /src="(\/assets\/password\.js\?v=[0-9a-f]{12})"/.exec(page)?.[1];
+    expect(css).toBeDefined();
+    expect(js).toBeDefined();
+    for (const url of [css!, js!]) {
+      const res = await fetch(`${APP}${url}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+    }
+    // Icons the stylesheet names are versioned too.
+    const sheet = await (await fetch(`${APP}${css!}`)).text();
+    expect(sheet).toMatch(/url\(\/assets\/icons\/rule-ok\.svg\?v=[0-9a-f]{12}\)/);
+    expect(sheet).not.toMatch(/url\(\/assets\/[^)?]+\)/);
+  });
+
+  it('caches an unversioned or outdated URL only briefly', async () => {
+    for (const url of ['/assets/entity-auth.css', '/assets/entity-auth.css?v=000000000000']) {
+      const res = await fetch(`${APP}${url}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('cache-control')).toBe('public, max-age=300');
     }
   });
 });

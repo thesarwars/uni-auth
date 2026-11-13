@@ -1,6 +1,6 @@
 <% layout('./layout') %>
 <div class="page-head">
-  <a class="back" href="/account/contact"><img src="/assets/icons/arrow-left.svg" alt="" width="18" height="18">Email and phone</a>
+  <a class="back" href="/account/contact"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Email and phone</a>
   <h1 id="title">Check <%= it.channel === 'email' ? 'your email' : 'WhatsApp' %></h1>
   <p>Enter the <%= it.codeLength %>-digit code we just sent<% if (it.destination) { %> to <strong><%= it.destination %></strong><% } %> to add it to your account.</p>
 </div>

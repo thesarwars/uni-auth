@@ -28,7 +28,7 @@
     <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
     <input type="hidden" name="action" value="upstream">
 <% it.upstreams.forEach(function (u) { %>
-    <button type="submit" name="provider" value="<%= u.id %>" class="btn stroke wide"><img src="/assets/icons/<%= u.id %>.svg" alt="" width="20" height="20">Continue with <%= u.name %></button>
+    <button type="submit" name="provider" value="<%= u.id %>" class="btn stroke wide"><img src="<%= asset('icons/' + (u.id) + '.svg') %>" alt="" width="20" height="20">Continue with <%= u.name %></button>
 <% }) %>
   </form>
 <% } %>
