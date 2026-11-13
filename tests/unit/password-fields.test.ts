@@ -127,6 +127,33 @@ describe('the sign-up screen, with password.js', () => {
   });
 });
 
+describe('sending a form', () => {
+  it('sends it once: a second submit while the first is on its way is stopped', async () => {
+    const { window, $ } = screen('signup');
+    const form = $<HTMLFormElement>('form#signup, form');
+    const submit = () => {
+      const e = new window.Event('submit', { cancelable: true });
+      form.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    expect(submit()).toBe(false);
+    expect(submit()).toBe(true);
+    expect(form.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('can be sent again after Back brings the page back', () => {
+    const { window, $ } = screen('signup');
+    const form = $<HTMLFormElement>('form');
+    form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+    const back = new window.Event('pageshow') as Event & { persisted?: boolean };
+    Object.defineProperty(back, 'persisted', { value: true });
+    window.dispatchEvent(back);
+    const again = new window.Event('submit', { cancelable: true });
+    form.dispatchEvent(again);
+    expect(again.defaultPrevented).toBe(false);
+  });
+});
+
 describe('without JavaScript', () => {
   it('lists the rules and shows no control that would do nothing', () => {
     const html = eta.render('signup', {

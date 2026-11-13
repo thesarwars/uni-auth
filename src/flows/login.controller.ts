@@ -180,6 +180,13 @@ export class LoginController {
       return;
     }
 
+    // This sign-in already finished (the form was sent twice): go where the first copy went.
+    const done = await this.signIn.finished(challenge);
+    if (done) {
+      await redirect(reply, done);
+      return;
+    }
+
     const request = await this.hydra.getLogin(challenge);
     if (form.action === 'upstream') {
       await this.leaveFor(reply, challenge, form.provider);
