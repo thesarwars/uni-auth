@@ -194,6 +194,15 @@ export class LoginController {
 
     const request = await this.hydra.getLogin(challenge);
     if (form.action === 'upstream') {
+      // The screens show both buttons, as designed; one whose keys aren't set yet says so.
+      if (!this.upstream.configured(form.provider)) {
+        await this.identifierScreen(reply, challenge, request, {
+          notice:
+            `Signing in with ${providerName(form.provider)} isn't available yet. ` +
+            `Use your ${phonesAccepted() ? 'email or phone' : 'email'} instead.`,
+        });
+        return;
+      }
       await this.leaveFor(reply, challenge, form.provider);
       return;
     }
@@ -741,7 +750,7 @@ export class LoginController {
     reply: FastifyReply,
     challenge: string,
     request: LoginRequest,
-    state: { typed?: string; error?: string; create?: boolean } = {},
+    state: { typed?: string; error?: string; notice?: string; create?: boolean } = {},
   ): FastifyReply {
     // prompt=registration, or the member chose "Create account": the same screen, worded for it.
     const create = state.create === true || wantsCreate(request);
@@ -755,7 +764,10 @@ export class LoginController {
         phones: phonesAccepted(),
         typed: state.typed ?? '',
         error: state.error ?? null,
-        upstreams: this.upstream.enabled().map((p) => ({ id: p, name: providerName(p) })),
+        // Every provider, set up or not: the design shows both. Choosing one that isn't set up
+        // yet comes back here with a notice (submit).
+        upstreams: PROVIDERS.map((p) => ({ id: p, name: providerName(p) })),
+        notice: state.notice ?? null,
       },
       state.error ? 422 : 200,
     );

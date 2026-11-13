@@ -1,6 +1,7 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { env } from '../../src/config/env';
 import { startApp } from '../support/app';
 import {
   APP,
@@ -86,6 +87,31 @@ async function backOnIdentifier(t: Trip, hop: Hop): Promise<string> {
   expect(page.html).toContain('Sign in to continue to');
   return page.html;
 }
+
+describe('a provider whose keys are not set yet', () => {
+  it('still shows its button, and choosing it says so without leaving', async () => {
+    const saved = env.GOOGLE_CLIENT_ID;
+    env.GOOGLE_CLIENT_ID = undefined;
+    try {
+      const b = browser();
+      const { challenge } = pkce();
+      const { hop } = await b.follow(authorizeUrl(challenge));
+      expect(hop.html).toContain('Continue with Google');
+      expect(hop.html).toContain('Continue with Apple');
+      const chose = await b.post(`${APP}/login`, {
+        ...formFields(hop.html),
+        action: 'upstream',
+        provider: 'google',
+      });
+      expect(chose.status).toBe(200);
+      expect(chose.location).toBeNull();
+      expect(chose.html).toMatch(/Signing in with Google isn(&#39;|')t available yet\./);
+      expect(chose.html).toContain('id="identifier"');
+    } finally {
+      env.GOOGLE_CLIENT_ID = saved;
+    }
+  });
+});
 
 describe('Sign in with Google', () => {
   it('asks Google for a code with state, nonce and PKCE, and nothing else of the member', async () => {
