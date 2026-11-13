@@ -1,0 +1,30 @@
+<% layout('./layout') %>
+<% var day = function (d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }; %>
+<div class="page-head">
+  <h1 id="title">Security &amp; sign-in</h1>
+  <p>Settings to keep your account safe.</p>
+</div>
+<section class="panel" aria-labelledby="h-how">
+  <div class="panel-head">
+    <h2 id="h-how">How you sign in</h2>
+    <p>Ways you prove it's you.</p>
+  </div>
+  <ul class="rows">
+    <li><a class="row" href="/account/password">
+      <span class="tile"><img src="/assets/icons/lock-20.svg" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Password<% if (!it.profile.passwordSetAt) { %><span class="tag bad">Not set</span><% } %></span><span class="s"><%= it.profile.passwordSetAt ? 'Last changed ' + day(it.profile.passwordSetAt) : 'Set one to sign in without a code' %></span></span>
+      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+    </a></li>
+<% it.profile.upstreams.forEach(function (u) { var name = u === 'oauth_google' ? 'Google' : 'Apple'; %>
+    <li class="row">
+      <span class="tile"><img src="/assets/icons/<%= u === 'oauth_google' ? 'google' : 'apple' %>.svg" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= name %></span><span class="s">You can sign in with your <%= name %> account</span></span>
+    </li>
+<% }) %>
+    <li><a class="row" href="/account/contact">
+      <span class="tile"><img src="/assets/icons/mail.svg" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">A code to your email or phone</span><span class="s"><%= it.identifiers.filter(function (r) { return r.verified; }).length %> verified <%= it.identifiers.filter(function (r) { return r.verified; }).length === 1 ? 'address' : 'addresses' %></span></span>
+      <img class="go" src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+    </a></li>
+  </ul>
+</section>

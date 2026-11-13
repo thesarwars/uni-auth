@@ -89,7 +89,7 @@ const Env = z.object({
    * The provider's name on the screens that are about the provider rather than a client:
    * "Sign out of <name>?" (auth-plan.md section 7.2). The brand is OQ-ONB-10's answer.
    */
-  PROVIDER_NAME: z.string().min(1).default('entity-auth'),
+  PROVIDER_NAME: z.string().min(1).default('Entity'),
 
   /** The footer links on every screen: help, privacy notice and terms. Each is left out unset. */
   HELP_URL: optionalUrl,

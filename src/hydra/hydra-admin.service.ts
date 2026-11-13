@@ -14,6 +14,8 @@ const Client = z.object({
   client_id: z.string(),
   client_name: z.string().optional().default(''),
   logo_uri: z.string().optional().default(''),
+  policy_uri: z.string().optional().default(''),
+  tos_uri: z.string().optional().default(''),
   metadata: z.record(z.string(), z.unknown()).nullish(),
 });
 export type HydraClient = z.infer<typeof Client>;

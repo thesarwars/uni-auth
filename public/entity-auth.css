@@ -1,79 +1,77 @@
 /*
- * entity-auth's screens: the sign-in pages (views/layout.eta) and the account centre
- * (views/account/layout.eta). The design is docs/entity-auth Sign in.html. Inter is served from
- * this origin (public/inter-latin.woff2, SIL Open Font License 1.1), as the CSP allows nothing
- * else. Components use only the tokens; tests/e2e/accessibility.e2e.test.ts checks each pair.
- * --border-field departs from the design's 12% black: a field's edge holds 3:1 (WCAG 1.4.11).
+ * Entity's screens: the sign-in pages (views/layout.eta) and the account centre
+ * (views/account/layout.eta). The design is Figma "Entity · Sign-in and account". Geist and
+ * Geist Mono are served from this origin (public/geist*.woff2, SIL Open Font License 1.1), as the
+ * CSP allows nothing else. Components use only the tokens; tests/e2e/accessibility.e2e.test.ts
+ * checks each pair. Two departures from the design, both for WCAG: a field's edge is
+ * --border-field (#8a8a8a, 3:1, 1.4.11) where the design has 12% black, and placeholder text is
+ * --text-placeholder (4.5:1, 1.4.3) where the design has #a3a3a3.
  */
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Geist';
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 100 900;
   font-display: swap;
-  src: url(/assets/inter-latin.woff2) format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  src: url(/assets/geist.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(/assets/geist-mono.woff2) format('woff2');
 }
 :root {
-  --bg-page: #f6f6f6;
+  --bg-page: #f5f5f5;
   --bg-surface: #ffffff;
-  --bg-subtle: #f3f3f3;
-  --bg-subtle-hover: #efefef;
-  --text-primary: #141414;
-  --text-secondary: #525252;
-  --text-tertiary: #6b6b6b;
-  --text-disabled: #9c9c9c;
+  --bg-hover: #fafafa;
+  --text-primary: #000000;
+  --text-secondary: #262626;
+  --text-tertiary: #525252;
+  --text-placeholder: #737373;
   --text-on-action: #ffffff;
-  --border-subtle: rgba(0, 0, 0, 0.08);
+  --action-primary: #000000;
+  --action-primary-hover: #262626;
+  --border-hairline: rgba(0, 0, 0, 0.04);
+  --border-default: rgba(0, 0, 0, 0.12);
   --border-field: #8a8a8a;
-  --border-focus: #141414;
-  --ring-focus: rgba(0, 0, 0, 0.08);
-  --link-underline: rgba(0, 0, 0, 0.24);
-  --action-primary: #0a0a0a;
-  --action-primary-hover: #2a2a2a;
-  --action-disabled: #efefef;
-  --meter-fill: #141414;
-  --meter-track: #e5e5e5;
-  --check-done: #141414;
-  --check-todo: #b5b5b5;
-  --separator: #b5b5b5;
+  --border-focus: #000000;
+  --ring-focus: rgba(0, 0, 0, 0.2);
+  --check-done: #000000;
   --status-error: #b14848;
-  --status-error-ring: rgba(177, 72, 72, 0.1);
-  --status-success: #c97a4b;
-  --status-success-bg: rgba(201, 122, 75, 0.1);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 24px 48px -24px rgba(0, 0, 0, 0.12);
-  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --status-error-bg: #fbeeee;
+  --tag-neutral: #f5f5f5;
+  --font: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-}
-.page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   background: var(--bg-page);
   color: var(--text-primary);
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: var(--font);
   font-size: 15px;
-  line-height: 1.4;
-  letter-spacing: -0.006em;
+  line-height: 20px;
   -webkit-font-smoothing: antialiased;
 }
+h1,
+h2,
+p {
+  margin: 0;
+}
 a {
-  color: var(--text-primary);
+  color: inherit;
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+img {
+  display: block;
 }
 .sr {
   position: absolute !important;
@@ -90,427 +88,254 @@ a {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
-
-.top {
-  display: flex;
-  align-items: center;
-  padding: 16px 24px;
-  min-height: 76px;
-}
-.top form {
-  margin: 0;
-}
-.quiet {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 10px;
-  background: none;
-  font: inherit;
-  font-size: 14px;
-  line-height: 1;
+strong {
   font-weight: 500;
-  color: var(--text-secondary);
-  text-decoration: none;
-  cursor: pointer;
-}
-.top .quiet {
-  margin-left: -8px;
-}
-.quiet:hover {
   color: var(--text-primary);
 }
 
-main {
-  flex: 1;
+/* ---------------------------------------------------------------------------------------- */
+/* Sign-in: the card                                                                          */
+/* ---------------------------------------------------------------------------------------- */
+
+.page {
+  min-height: 100vh;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: 104px 16px 64px;
+  gap: 20px;
+  padding: 40px 16px;
 }
 .card {
-  width: 100%;
-  max-width: 440px;
-  display: flex;
-  flex-direction: column;
-  padding: 40px;
+  width: min(1040px, 100%);
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 24px;
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 28px;
+  overflow: hidden;
 }
-.card > form {
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 460px;
+  gap: 64px;
+  min-height: 320px;
+  padding: 40px 40px 36px;
+}
+.intro {
   display: flex;
   flex-direction: column;
-  margin: 0;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
 }
-.mark {
-  display: block;
-  width: 40px;
-  height: 40px;
+.intro .logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10.2px;
+  margin-bottom: 8px;
 }
-h1 {
-  margin: 28px 0 0;
-  font-size: 28px;
-  line-height: 1.15;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-}
-.done h1 {
-  margin-top: 24px;
-}
-.lede {
-  margin: 10px 0 0;
-  font-size: 15px;
-  line-height: 1.4;
-  color: var(--text-secondary);
-  text-wrap: pretty;
-}
-.pill + .lede {
-  margin-top: 16px;
-}
-.lede strong {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-.notice {
-  margin: 16px 0 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--bg-subtle);
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.pill {
-  align-self: flex-start;
-  display: inline-flex;
-  margin-top: 12px;
-  padding: 4px 0;
-  border-radius: 999px;
-  color: var(--text-primary);
-  text-decoration: none;
-  max-width: 100%;
-}
-.pill > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  max-width: 100%;
-  padding: 0 12px 0 3px;
-  border-radius: 999px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
-}
-.pill:hover > span {
-  background: var(--bg-subtle-hover);
-}
-.pill .avatar {
-  flex: none;
-  width: 28px;
-  height: 28px;
+.intro .logo.initial {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  background: var(--action-primary);
+  color: var(--text-on-action);
+  font-size: 20px;
+  font-weight: 600;
+}
+.intro h1 {
+  font-size: 36px;
+  line-height: 40px;
+  font-weight: 600;
+  letter-spacing: -0.72px;
+  overflow-wrap: anywhere;
+}
+.intro .lede {
+  font-size: 16px;
+  line-height: 24px;
   color: var(--text-secondary);
 }
-.pill .who {
-  font-size: 14px;
-  line-height: 1;
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.form > form {
+  display: contents;
+}
+.text-block {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+.legal {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+.legal a {
   font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.legal a:hover {
+  text-decoration: underline;
+}
+
+/* Who is signing in: a chip that goes back to change the address. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 4px 12px 4px 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.chip:hover {
+  background: var(--bg-hover);
+}
+.chip .avatar {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--tag-neutral);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chip .who {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pill .chev {
+.chip img {
   flex: none;
-  color: var(--text-tertiary);
 }
 
+/* Fields */
 .field {
-  margin-top: 28px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-.field + .field {
-  margin-top: 24px;
-}
-.field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
-label {
+.field > label,
+.field-head label {
   font-size: 14px;
-  line-height: 1;
+  line-height: 20px;
   font-weight: 500;
 }
-input.text {
+input.text,
+select.text {
   width: 100%;
-  height: 48px;
-  padding: 0 16px;
-  border-radius: 12px;
+  height: 52px;
+  padding: 0 20px;
   border: 1px solid var(--border-field);
+  border-radius: 999px;
   background: var(--bg-surface);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 15px;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 24px;
   outline: none;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+select.text {
+  appearance: none;
+  background-image: url(/assets/icons/chevron-down.svg);
+  background-repeat: no-repeat;
+  background-position: right 20px center;
+  padding-right: 48px;
 }
 input.text::placeholder {
-  color: var(--text-tertiary);
+  color: var(--text-placeholder);
 }
-input.text:focus {
+input.text:focus,
+select.text:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 4px var(--ring-focus);
 }
 input.text[aria-invalid='true'] {
   border-color: var(--status-error);
-  box-shadow: 0 0 0 4px var(--status-error-ring);
+}
+input.text[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 4px var(--status-error-bg);
 }
 .hint {
-  margin: 0;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 20px;
   color: var(--text-tertiary);
 }
-
-.secret {
-  position: relative;
-}
-.secret input.text {
-  padding-right: 52px;
-}
-.secret input[type='password'] {
-  letter-spacing: 0.12em;
-}
-button.reveal {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-button.reveal:hover {
-  color: var(--text-primary);
-  background: var(--bg-subtle);
-}
-button.reveal[hidden] {
-  display: none;
-}
-button.reveal .eye-off,
-button.reveal[aria-pressed='true'] .eye {
-  display: none;
-}
-button.reveal[aria-pressed='true'] .eye-off {
-  display: block;
-}
-
 .error {
-  margin: 2px 0 0;
   display: flex;
-  align-items: flex-start;
   gap: 6px;
-  font-size: 13px;
-  line-height: 1.4;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 20px;
   color: var(--status-error);
 }
 .error svg {
   flex: none;
-  margin-top: 1px;
+  margin-top: 2px;
 }
-.error a,
-.error button.link {
-  color: inherit;
-  font-weight: 500;
-  text-decoration-color: currentColor;
+.notice {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
 }
 
-.btn {
-  margin-top: 24px;
-  width: 100%;
-  height: 48px;
+/* A password field and its show/hide button. */
+.secret {
+  position: relative;
+}
+.secret input.text {
+  padding-right: 60px;
+}
+.reveal {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 16px;
   border: 0;
-  border-radius: 12px;
-  background: var(--action-primary);
-  color: var(--text-on-action);
-  box-shadow: var(--shadow-button);
-  font: inherit;
-  font-size: 15px;
-  line-height: 1;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.btn:hover {
-  background: var(--action-primary-hover);
-}
-.btn:disabled {
-  background: var(--action-disabled);
-  color: var(--text-disabled);
-  box-shadow: none;
-  cursor: not-allowed;
-}
-.btn.secondary {
-  margin-top: 0;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-field);
-  box-shadow: none;
-}
-.btn.secondary:hover {
-  background: var(--bg-subtle);
-}
-.btn + .btn {
-  margin-top: 10px;
-}
-
-.link,
-button.link {
-  padding: 0;
-  border: 0;
+  border-radius: 50%;
   background: none;
-  font: inherit;
-  font-weight: 500;
   color: var(--text-primary);
-  text-decoration: underline;
-  text-decoration-color: var(--link-underline);
-  text-underline-offset: 3px;
   cursor: pointer;
-  transition: text-decoration-color 0.15s ease;
 }
-.link:hover,
-button.link:hover {
-  text-decoration-color: currentColor;
+.reveal:hover {
+  background: var(--bg-page);
 }
-.field-head .link {
-  display: inline-flex;
-  align-items: center;
-  height: 44px;
-  margin: -15px 0;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.or {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 24px 0 16px;
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-.or::before,
-.or::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
-}
-.upstreams {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-}
-
-.band {
-  margin: 32px -40px -40px;
-  padding: 20px 40px;
-  background: var(--bg-subtle);
-  border-top: 1px solid var(--border-subtle);
-  border-radius: 0 0 23px 23px;
-}
-.band p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--text-secondary);
-  text-align: center;
-  text-wrap: pretty;
-}
-.band p + p {
-  margin-top: 8px;
-}
-.band form {
-  display: inline;
-  margin: 0;
-}
-
-/* Choosing a password: strength meter, then the policy's rules. */
-.checks {
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.strength {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.strength[hidden] {
+.reveal .eye,
+.reveal[aria-pressed='true'] .eye-off {
   display: none;
 }
-.meter {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+.reveal[aria-pressed='true'] .eye {
+  display: block;
 }
-.meter span {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--meter-track);
-}
-.strength[data-level='1'] .meter span:nth-child(-n + 1),
-.strength[data-level='2'] .meter span:nth-child(-n + 2),
-.strength[data-level='3'] .meter span:nth-child(-n + 3),
-.strength[data-level='4'] .meter span {
-  background: var(--meter-fill);
-}
-.strength p {
-  min-width: 48px;
-  margin: 0;
-  text-align: right;
-  font-size: 13px;
-  line-height: 1;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-.strength[data-level='4'] p {
-  color: var(--text-primary);
-}
-.strength[data-level='0'] p {
-  visibility: hidden;
-}
-.strength strong {
-  font-weight: inherit;
-}
+
+/* The password rules, ticked as they are met (public/password.js). */
 .rules {
   list-style: none;
   margin: 0;
@@ -519,119 +344,86 @@ button.link:hover {
   flex-direction: column;
   gap: 10px;
 }
-.rules li,
-.match {
+.rules li {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  line-height: 1;
+  line-height: 20px;
   color: var(--text-tertiary);
 }
-.tick,
-.match::before {
-  position: relative;
+.rules li::before {
+  content: '';
   flex: none;
   width: 16px;
   height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid var(--check-todo);
+  background: url(/assets/icons/check-unmet.svg) center / 16px no-repeat;
 }
-.match {
-  position: relative;
-  margin: 0;
+.rules li.met {
+  color: var(--text-primary);
 }
-.match[hidden] {
-  display: none;
+.rules li.met::before {
+  background-image: url(/assets/icons/check-met.svg);
 }
-.match::before {
-  content: '';
-}
-.rules .met,
-.match.met {
-  color: var(--text-secondary);
-}
-.rules .met .tick,
-.match.met::before {
-  border: 0;
-  background: var(--check-done);
-}
-.rules .met .tick::after,
-.match.met::after {
-  content: '';
-  position: absolute;
-  width: 3.5px;
-  height: 7px;
-  border: solid var(--text-on-action);
-  border-width: 0 1.75px 1.75px 0;
-  transform: rotate(45deg);
-}
-.rules .met .tick::after {
-  left: 6px;
-  top: 3.5px;
-}
-.match.met::after {
-  left: 6px;
-  top: 4px;
-}
-.rules .unmet {
+.rules li.unmet {
   color: var(--status-error);
 }
-.rules .unmet .tick {
-  border-color: var(--status-error);
+.match {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-tertiary);
+}
+.match.met {
+  color: var(--text-primary);
 }
 
-/* The code: one real input. With password.js it sits invisibly over six boxes that show it. */
+/* The code: one box per digit (public/password.js); a plain field without the script. */
 .code {
-  margin-top: 28px;
   position: relative;
 }
 .code input.text {
-  font-size: 24px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 20px;
   letter-spacing: 0.4em;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  height: 56px;
 }
 .code.boxed input.text {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 100%;
+  height: 56px;
   opacity: 0;
   z-index: 1;
   cursor: text;
 }
 .boxes {
   display: none;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 .code.boxed .boxes {
-  display: grid;
+  display: flex;
 }
 .boxes span {
+  width: 48px;
   height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
   border: 1px solid var(--border-field);
+  border-radius: 16px;
   background: var(--bg-surface);
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
 }
 .code.boxed.focused .boxes span.at {
-  border-color: var(--border-focus);
+  border: 1.5px solid var(--border-focus);
   box-shadow: 0 0 0 4px var(--ring-focus);
 }
 .code.boxed.focused .boxes span.at:empty::after {
   content: '';
   width: 2px;
-  height: 24px;
+  height: 22px;
   border-radius: 1px;
   background: var(--text-primary);
   animation: blink 1.1s steps(1) infinite;
@@ -652,132 +444,362 @@ button.link:hover {
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .code.boxed.focused .boxes span.at:empty::after {
-    animation: none;
-  }
-}
 
-.badge {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--status-success-bg);
-  color: var(--status-success);
-}
-
-.foot {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  padding: 0 16px 12px;
-}
-.foot a {
+/* Buttons and links */
+.btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
   height: 44px;
-  padding: 0 8px;
-  font-size: 13px;
-  line-height: 1;
-  color: var(--text-tertiary);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--action-primary);
+  color: var(--text-on-action);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.foot a:hover {
+.btn:hover {
+  background: var(--action-primary-hover);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.btn.ghost {
+  background: transparent;
   color: var(--text-primary);
 }
-.foot .dot {
-  width: 3px;
-  height: 3px;
+.btn.ghost:hover {
+  background: var(--bg-page);
+}
+.btn.stroke {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.btn.stroke:hover {
+  background: var(--bg-hover);
+}
+.btn.wide {
+  width: 100%;
+}
+.btn.small {
+  height: 32px;
+  padding: 0 16px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.btn.danger {
+  background: var(--status-error);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+}
+.actions form {
+  display: contents;
+}
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.link.danger {
+  color: var(--status-error);
+}
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-tertiary);
+}
+.or::before,
+.or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+.upstreams {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* "Try another way": the ways to sign in, as rows. */
+.ways {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ways li {
+  border-bottom: 1px solid var(--border-hairline);
+}
+.ways form {
+  margin: 0;
+}
+.way {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.way:hover {
+  background: var(--bg-hover);
+}
+.way .tile {
+  flex: none;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--separator);
+  background: var(--bg-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.way .what {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.way .label {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.way .sub {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-secondary);
 }
 
-@media (max-height: 820px) {
-  main {
-    padding-top: 40px;
-  }
-}
-@media (max-width: 480px) {
-  .page {
-    background: var(--bg-surface);
-  }
-  main {
-    padding: 4px 20px 40px;
-  }
-  .card {
-    padding: 12px 0 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    background: transparent;
-  }
-  .band {
-    margin: 28px 0 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
+/* A finished step: a tick above the heading. */
+.badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--action-primary);
+  color: var(--text-on-action);
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The account centre (views/account/). The same tokens and parts, in a page with a navigation:
- * a column beside the content on a wide screen, a row of tabs above it on a narrow one.
- * ------------------------------------------------------------------------------------------- */
-.acct-top {
+/* Under the card: the way back, and the deployment's links. */
+.foot {
+  width: min(1040px, 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-secondary);
 }
-.acct-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
+.foot .links {
+  display: flex;
+  gap: 24px;
+  margin-left: auto;
+}
+.foot a {
   text-decoration: none;
 }
-.acct-brand img {
-  width: 28px;
-  height: 28px;
+.foot a:hover {
+  text-decoration: underline;
 }
-.acct-brand span {
+.foot form {
+  margin: 0;
+}
+.quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  line-height: 20px;
   color: var(--text-secondary);
-  font-weight: 500;
+  cursor: pointer;
 }
-.acct-who {
+.quiet:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .page {
+    justify-content: flex-start;
+    padding: 16px 16px 32px;
+  }
+  .card-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    min-height: 0;
+    padding: 28px 24px 24px;
+  }
+  .intro h1 {
+    font-size: 28px;
+    line-height: 32px;
+    letter-spacing: -0.56px;
+  }
+  .foot {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 400px) {
+  .boxes {
+    gap: 6px;
+  }
+  .boxes span {
+    width: 42px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------- */
+/* The account centre                                                                         */
+/* ---------------------------------------------------------------------------------------- */
+
+.acct {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.acct-top {
+  height: 72px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 28px;
+}
+.acct-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-size: 20px;
+  line-height: 28px;
+}
+.acct-brand .name {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.acct-brand .area {
+  color: var(--text-secondary);
+}
+.acct-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.acct-tools .help {
+  display: flex;
+  border-radius: 50%;
+}
+.avatar-i {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  color: var(--text-on-action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.me {
+  position: relative;
+}
+.me summary {
+  list-style: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.me summary::-webkit-details-marker {
+  display: none;
+}
+.me .menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  width: 280px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.2);
+}
+.me .menu .id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
-.acct-who .who {
-  font-size: 14px;
-  color: var(--text-secondary);
+.me .menu .id span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.acct-who form {
+.me .menu .id .n {
+  font-weight: 500;
+}
+.me .menu .id .e {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.me .menu form {
   margin: 0;
 }
 .acct-body {
   flex: 1;
-  width: 100%;
-  max-width: 1040px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 40px;
-  padding: 40px 24px 64px;
+  display: flex;
+  align-items: flex-start;
+}
+.acct-nav {
+  flex: none;
+  width: 288px;
+  padding: 12px 16px 40px;
 }
 .acct-nav ul {
   list-style: none;
@@ -785,219 +807,334 @@ button.link:hover {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .acct-nav a {
   display: flex;
   align-items: center;
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
+  gap: 12px;
+  padding: 6px 16px 6px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.acct-nav a:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.acct-nav .tile {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.acct-nav .tile .on,
+.acct-nav a[aria-current='page'] .tile .off {
+  display: none;
+}
+.acct-nav a[aria-current='page'] .tile .on {
+  display: block;
+}
+.acct-nav a[aria-current='page'] {
+  background: var(--bg-surface);
+  border-color: var(--border-hairline);
+  font-weight: 600;
+}
+.acct-nav a[aria-current='page'] .tile {
+  background: var(--action-primary);
+  border-color: var(--action-primary);
+}
+.acct-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  padding: 24px 24px 96px;
+}
+.acct-content {
+  width: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+.page-head h1 {
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.56px;
+}
+.page-head p {
+  color: var(--text-secondary);
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 500;
   color: var(--text-secondary);
   text-decoration: none;
 }
-.acct-nav a:hover {
-  background: var(--bg-subtle);
+.back:hover {
   color: var(--text-primary);
 }
-.acct-nav a[aria-current='page'] {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px var(--border-subtle);
+.profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 0 16px;
+  text-align: center;
 }
-main.acct-main {
-  display: block;
-  flex: none;
-  padding: 0;
-  min-width: 0;
-  max-width: 680px;
+.profile .avatar-i {
+  width: 80px;
+  height: 80px;
+  font-size: 28px;
 }
-.acct-main h1 {
-  margin: 0;
+.profile h1 {
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.56px;
+  overflow-wrap: anywhere;
 }
-.acct-main > .lede {
-  margin-top: 8px;
+.profile p {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 .flash {
-  margin: 24px 0 0;
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  font-size: 14px;
-  color: var(--text-primary);
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: 16px;
+  font-size: 14px;
 }
 .flash.bad {
   color: var(--status-error);
   border-color: var(--status-error);
 }
+
+/* A card of rows */
 .panel {
-  margin-top: 24px;
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 24px;
   overflow: hidden;
 }
-.panel > h2 {
-  margin: 0;
-  padding: 20px 24px 4px;
-  font-size: 16px;
-  line-height: 1.3;
-  font-weight: 600;
-}
-.panel > .note {
-  margin: 0;
-  padding: 0 24px 12px;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-.panel > form,
-.panel > .body {
-  padding: 8px 24px 24px;
+.panel-head {
   display: flex;
   flex-direction: column;
-  margin: 0;
+  gap: 8px;
+  padding: 24px 24px 20px;
 }
-.panel > form .field:first-of-type,
-.panel > .body .field:first-of-type {
-  margin-top: 12px;
+.panel-head h2 {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
 }
-.panel .btn {
-  width: auto;
-  align-self: flex-start;
-  min-width: 140px;
-  margin-top: 8px;
+.panel-head p {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
 }
 .rows {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.rows > li {
+.row {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 16px 24px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-hairline);
+  text-decoration: none;
+  min-height: 52px;
 }
-.rows .what {
+a.row:hover {
+  background: var(--bg-hover);
+}
+.row .k {
+  flex: none;
+  width: 160px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.row .v {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.row .v .val,
+.row .text .val {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.row .tile {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.row .text {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.rows .label {
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-.rows .value {
-  font-size: 15px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-.rows .tags {
-  display: flex;
   gap: 6px;
+}
+.row .text .t {
+  display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.row .text .s {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+.row .go {
+  flex: none;
+}
+.row .do {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+.row .do form {
+  margin: 0;
+}
+.panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 24px;
+  border-top: 1px solid var(--border-hairline);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-decoration: none;
+}
+a.panel-foot:hover {
+  background: var(--bg-hover);
 }
 .tag {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 8px;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: var(--bg-subtle);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-.rows .actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.rows .actions form {
-  margin: 0;
-}
-.rows a.go {
-  font-size: 14px;
-  font-weight: 500;
+  background: var(--tag-neutral);
   color: var(--text-primary);
-  text-decoration: none;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
   white-space: nowrap;
 }
-.rows a.go:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.tag.inverse {
+  background: var(--action-primary);
+  color: var(--text-on-action);
 }
-button.link.danger {
+.tag.bad {
+  background: var(--status-error-bg);
   color: var(--status-error);
-  text-decoration-color: currentColor;
 }
-select.text {
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%),
-    linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%);
-  background-position:
-    calc(100% - 22px) 21px,
-    calc(100% - 17px) 21px;
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
-  padding-right: 44px;
-}
-.kinds {
+
+/* A card holding a form */
+.panel.pad {
+  padding: 28px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 20px;
 }
-@media (max-width: 760px) {
+.panel.pad > form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.panel.pad .actions {
+  padding-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .acct-top {
+    padding: 0 16px;
+  }
   .acct-body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-    padding: 16px 16px 48px;
+    flex-direction: column;
+    align-items: stretch;
   }
   .acct-nav {
+    width: auto;
+    padding: 0 16px 8px;
     overflow-x: auto;
-    margin: 0 -16px;
-    padding: 0 16px;
   }
   .acct-nav ul {
     flex-direction: row;
-    gap: 4px;
   }
-  .acct-nav a {
-    white-space: nowrap;
+  .acct-main {
+    padding: 8px 16px 64px;
   }
-  .acct-top {
-    padding: 12px 16px;
+  .row .k {
+    width: 96px;
   }
-  .acct-who .who {
+}
+@media (max-width: 560px) {
+  .acct-brand .area {
     display: none;
   }
-  .rows > li {
-    flex-wrap: wrap;
+  .row {
     padding: 14px 16px;
   }
-  .rows .actions {
-    justify-content: flex-start;
+  .panel-head {
+    padding: 20px 16px 16px;
   }
-  .panel > h2 {
-    padding: 18px 16px 4px;
+  .panel.pad {
+    padding: 20px 16px;
   }
-  .panel > .note {
-    padding: 0 16px 12px;
+  .row .k {
+    width: auto;
+    flex-basis: 100%;
   }
-  .panel > form,
-  .panel > .body {
-    padding: 8px 16px 20px;
+  .row:has(.k) {
+    flex-wrap: wrap;
+    gap: 4px 16px;
   }
+}
+.panel.pad .panel-head {
+  padding: 0;
 }

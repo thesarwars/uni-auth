@@ -1,3 +1,8 @@
 <% layout('./layout') %>
-<h1 id="title"><%= it.heading %></h1>
-<p class="lede" role="alert"><%= it.detail %></p>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title"><%= it.heading %></h1>
+</div>
+<div class="form">
+  <p class="text-block" role="alert"><%= it.detail %></p>
+</div>

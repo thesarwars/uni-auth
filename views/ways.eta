@@ -1,0 +1,33 @@
+<% layout('./layout') %>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Choose how you want to sign in</h1>
+<%~ include('./_pill', it) %>
+</div>
+<div class="form">
+  <ul class="ways">
+    <li>
+      <form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+        <input type="hidden" name="purpose" value="sign_in">
+        <button type="submit" name="action" value="send_code" class="way">
+          <span class="tile"><img src="/assets/icons/<%= it.channel === 'email' ? 'mail' : 'mobile' %>.svg" alt="" width="20" height="20"></span>
+          <span class="what"><span class="label">Get a code by <%= it.channel %></span><span class="sub"><%= it.destination %></span></span>
+          <img src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+        </button>
+      </form>
+    </li>
+<% if (it.password) { %>
+    <li>
+      <form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+        <button type="submit" name="action" value="identify" class="way">
+          <span class="tile"><img src="/assets/icons/lock-20.svg" alt="" width="20" height="20"></span>
+          <span class="what"><span class="label">Enter your password</span></span>
+          <img src="/assets/icons/chevron-right.svg" alt="" width="20" height="20">
+        </button>
+      </form>
+    </li>
+<% } %>
+  </ul>
+</div>

@@ -1,9 +1,21 @@
 <% layout('./layout') %>
-<h1 id="title">Too many attempts</h1>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Too many attempts</h1>
 <%~ include('./_pill', it) %>
-<p class="lede" role="alert">Sign-in with a password is paused for this account. You can try again in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>, or reset your password now.</p>
-<form method="post" action="/login">
+</div>
+<div class="form">
+  <p class="text-block" role="alert">Password sign-in is paused for this account for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>. You can reset your password now, or sign in with a code.</p>
+  <div class="actions">
+    <form method="post" action="/login">
 <%~ include('./_hidden', it) %>
-  <input type="hidden" name="purpose" value="recovery">
-  <button type="submit" name="action" value="send_code" class="btn">Reset password</button>
-</form>
+      <input type="hidden" name="purpose" value="sign_in">
+      <button type="submit" name="action" value="send_code" class="btn ghost">Get a code instead</button>
+    </form>
+    <form method="post" action="/login">
+<%~ include('./_hidden', it) %>
+      <input type="hidden" name="purpose" value="recovery">
+      <button type="submit" name="action" value="send_code" class="btn">Reset password</button>
+    </form>
+  </div>
+</div>

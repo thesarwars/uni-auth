@@ -1,8 +1,11 @@
 <% layout('./layout') %>
-<h1 id="title">Check <%= it.channel === 'email' ? 'your email' : 'WhatsApp' %></h1>
-<p class="lede">Enter the <%= it.codeLength %>-digit code we just sent<% if (it.destination) { %> to <strong><%= it.destination %></strong><% } %> to add it to your account.</p>
-<section class="panel" aria-label="Code">
-  <form method="post" action="/account/contact/verify">
+<div class="page-head">
+  <a class="back" href="/account/contact"><img src="/assets/icons/arrow-left.svg" alt="" width="18" height="18">Email and phone</a>
+  <h1 id="title">Check <%= it.channel === 'email' ? 'your email' : 'WhatsApp' %></h1>
+  <p>Enter the <%= it.codeLength %>-digit code we just sent<% if (it.destination) { %> to <strong><%= it.destination %></strong><% } %> to add it to your account.</p>
+</div>
+<section class="panel pad" aria-label="Code">
+  <form id="verify" method="post" action="/account/contact/verify">
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
     <input type="hidden" name="otp_id" value="<%= it.otpId %>">
     <input type="hidden" name="destination" value="<%= it.destination %>">
@@ -14,14 +17,17 @@
       <p id="code-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></span></p>
 <% } %>
     </div>
-    <button type="submit" name="action" value="verify_code" class="btn">Add it</button>
   </form>
 <% if (it.destination) { %>
-  <form method="post" action="/account/contact/add" class="body">
+  <form method="post" action="/account/contact/add">
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
     <input type="hidden" name="kind" value="<%= it.kind || 'email' %>">
     <input type="hidden" name="value" value="<%= it.destination %>">
-    <p class="hint">Didn't get it? <button type="submit" class="link">Send a new code</button> · <a class="link" href="/account/contact">Cancel</a></p>
+    <button type="submit" class="link">Send the code again</button>
   </form>
 <% } %>
+  <div class="actions">
+    <a class="btn ghost" href="/account/contact">Cancel</a>
+    <button type="submit" form="verify" name="action" value="verify_code" class="btn">Add it</button>
+  </div>
 </section>

@@ -30,11 +30,9 @@ describe('the identifier screen', () => {
     for (const create of [false, true]) {
       const doc = render({ create, phones: true });
       expect(doc.querySelector('label[for=identifier]')!.textContent).toBe('Email or phone');
-      expect(doc.body.textContent).toContain('country code');
+      expect(doc.getElementById('identifier')!.getAttribute('placeholder')).toContain('+44');
     }
-    expect(render({ create: true, phones: true }).body.textContent).toContain(
-      'Enter the email or phone number you want to use.',
-    );
+    expect(render({ create: true, phones: true }).body.textContent).toContain('One account for');
   });
 
   it('asks for an email address only when phones are off', () => {
@@ -42,9 +40,8 @@ describe('the identifier screen', () => {
       const doc = render({ create, phones: false });
       expect(doc.querySelector('label[for=identifier]')!.textContent).toBe('Email');
       expect(doc.body.textContent).not.toMatch(/phone|country code/i);
+      expect(doc.getElementById('identifier')!.getAttribute('placeholder')).toBe('you@example.com');
     }
-    expect(render({ create: true, phones: false }).body.textContent).toContain(
-      'Enter the email address you want to use.',
-    );
+    expect(render({ create: true, phones: false }).body.textContent).toContain('One account for');
   });
 });

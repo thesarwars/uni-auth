@@ -62,8 +62,8 @@ describe('prompt=registration', () => {
   it('opens on the create-account wording', async () => {
     const f = await start('registration');
     expect(f.page.status).toBe(200);
-    expect(h1(f.page)).toBe('Create your account');
-    expect(f.page.html).toContain("send it a code to confirm it's yours");
+    expect(h1(f.page)).toMatch(/^Create your .+ account$/);
+    expect(f.page.html).toContain('Sign in instead');
     expect(f.page.html).toContain('<title>Create your account');
   });
 
@@ -81,14 +81,14 @@ describe('prompt=registration', () => {
   });
 
   it('is found among several prompt values', async () => {
-    expect(h1((await start('login registration')).page)).toBe('Create your account');
+    expect(h1((await start('login registration')).page)).toMatch(/^Create your .+ account$/);
   });
 
   it('creates the account for a new address, with its code, and signs in', async () => {
     const f = await start('registration');
     const email = `new-${randomBytes(6).toString('hex')}@example.com`;
     await post(f, { action: 'identify', identifier: email });
-    expect(h1(f.page)).toBe('Create your account');
+    expect(h1(f.page)).toBe('Create a password');
     await post(f, { action: 'signup', password: 'Brand-New-Pass-1', confirm: 'Brand-New-Pass-1' });
     const otpId = /name="otp_id" value="([^"]+)"/.exec(f.page.html)![1]!;
     await post(f, { action: 'verify_code', otp_id: otpId, code: outbox.last(email)!.code });

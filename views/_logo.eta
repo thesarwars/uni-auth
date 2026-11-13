@@ -1,0 +1,11 @@
+<%/* The intro's mark: the app's logo when it has one here (public/clients/), its initial when it
+   has none, and Entity's own mark on Entity's own screens (confirm it's you, sign out). */%>
+<% if (it.clientName && !it.plain && !it.confirm) { %>
+<% if (it.clientLogo) { %>
+<img class="logo" src="<%= it.clientLogo %>" alt="<%= it.clientName %>" width="44" height="44">
+<% } else { %>
+<span class="logo initial" aria-hidden="true"><%= it.clientName.trim().charAt(0).toUpperCase() %></span>
+<% } %>
+<% } else { %>
+<img class="logo" src="/assets/entity-auth.svg" alt="<%= it.providerName %>" width="44" height="44">
+<% } %>

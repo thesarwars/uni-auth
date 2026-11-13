@@ -96,7 +96,7 @@ describe('sign-in by code', () => {
     const page = await identify(f, m.email);
     expect(page.status).toBe(200);
     expect(page.html).toContain('Check your email');
-    expect(page.html).toMatch(/Enter the 6-digit code we just sent to sign in/);
+    expect(page.html).toMatch(/Enter the 6-digit code we sent to <strong>/);
     expect(page.html).toContain('autocomplete="one-time-code"');
 
     await enter(f, codeFor(m.email));
@@ -117,7 +117,11 @@ describe('sign-in by code', () => {
     const m = await createMember();
     const f = await start();
     const pw = await identify(f, m.email);
-    expect(pw.html).toContain('Get a code by email');
+    expect(pw.html).toContain('Try another way');
+    const ways = await post(f, { action: 'ways' });
+    expect(ways.html).toContain('Choose how you want to sign in');
+    expect(ways.html).toContain('Get a code by email');
+    expect(ways.html).toContain('Enter your password');
     await sendCode(f, 'sign_in');
     await enter(f, codeFor(m.email));
     expect((await landed(f)).amr).toEqual(['otp']);
@@ -156,7 +160,7 @@ describe('sign-in by code', () => {
       pages.push(p.html);
     }
     expect(pages[0]).toContain('That code isn&#39;t right.');
-    expect(pages[0]).not.toContain('left.');
+    expect(pages[0]).not.toMatch(/attempts? left\./);
     expect(pages[2]).toContain('2 attempts left.');
     expect(pages[3]).toContain('1 attempt left.');
 
@@ -270,10 +274,10 @@ describe('recovery', () => {
     expect(weak.status).toBe(422);
     expect(weak.html).toContain('does not meet every rule');
     expect(weak.html).toMatch(
-      /class="unmet"><span class="tick" aria-hidden="true"><\/span>At least 8 characters<span class="sr state"> \(not yet\)/,
+      /class="unmet">At least 8 characters<span class="sr state"> \(not yet\)/,
     );
     expect(weak.html).toMatch(
-      /class="unmet"><span class="tick" aria-hidden="true"><\/span>One uppercase letter<span class="sr state"> \(not yet\)/,
+      /class="unmet">One uppercase letter<span class="sr state"> \(not yet\)/,
     );
 
     const mismatch = await post(f, {

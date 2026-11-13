@@ -257,7 +257,7 @@ describe('sign-out', () => {
     const { url, hop } = await b.follow(start);
     expect(url).toMatch(/^http:\/\/localhost:3100\/logout\?logout_challenge=/);
     expect(hop.html).toContain('Sign out of entity-auth?');
-    expect(hop.html).toContain('will be signed out too');
+    expect(hop.html).toContain('You will be signed out of every app that uses');
 
     const posted = await b.post(`${APP}/logout`, { ...formFields(hop.html), action: 'sign_out' });
     const { url: landed } = await b.follow(posted.location!);

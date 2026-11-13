@@ -1,41 +1,46 @@
 <% layout('./layout') %>
+<div class="intro">
+<%~ include('./_logo', it) %>
 <% if (it.create) { %>
-<h1 id="title">Create your account</h1>
-<p class="lede">Enter the <%= it.phones ? "email or phone number" : "email address" %> you want to use. We'll send it a code to confirm it's yours, then <strong><%= it.clientName %></strong> signs you in.</p>
+  <h1 id="title">Create your <%= it.providerName %> account</h1>
+  <p class="lede">One account for <%= it.clientName %> and every app that uses <%= it.providerName %>.</p>
 <% } else { %>
-<h1 id="title">Sign in</h1>
-<p class="lede">Use your <%= it.providerName %> account to continue to <strong><%= it.clientName %></strong></p>
+  <h1 id="title">Sign in</h1>
+  <p class="lede">to continue to <strong><%= it.clientName %></strong></p>
 <% } %>
-<form method="post" action="/login" novalidate>
-  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
-  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
-  <div class="field">
-    <label for="identifier"><%= it.phones ? "Email or phone" : "Email" %></label>
-    <input id="identifier" class="text" name="identifier" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus value="<%= it.typed %>"<% if (it.error || it.phones) { %> aria-describedby="<%= [it.phones ? 'identifier-hint' : '', it.error ? 'identifier-error' : ''].filter(Boolean).join(' ') %>"<% } %><% if (it.error) { %> aria-invalid="true"<% } %>>
-<% if (it.phones) { %>
-    <p id="identifier-hint" class="hint">A phone number needs its country code, like +44 7700 900123.</p>
-<% } %>
+</div>
+<div class="form">
+  <form id="identify" method="post" action="/login" novalidate>
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+    <div class="field">
+      <label for="identifier"><%= it.phones ? 'Email or phone' : 'Email' %></label>
+      <input id="identifier" class="text" name="identifier" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus placeholder="<%= it.phones ? 'you@example.com or +44 7700 900123' : 'you@example.com' %>" value="<%= it.typed %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="identifier-error"<% } %>>
 <% if (it.error) { %>
-    <p id="identifier-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %></span></p>
+      <p id="identifier-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %></span></p>
 <% } %>
-  </div>
-  <button type="submit" name="action" value="identify" class="btn">Continue</button>
-</form>
+    </div>
+  </form>
 <% if (it.upstreams.length) { %>
-<p class="or">or</p>
-<form method="post" action="/login" class="upstreams">
-  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
-  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
-  <input type="hidden" name="action" value="upstream">
+  <p class="or">or</p>
+  <form method="post" action="/login" class="upstreams">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+    <input type="hidden" name="action" value="upstream">
 <% it.upstreams.forEach(function (u) { %>
-  <button type="submit" name="provider" value="<%= u.id %>" class="btn secondary">Continue with <%= u.name %></button>
+    <button type="submit" name="provider" value="<%= u.id %>" class="btn stroke wide"><img src="/assets/icons/<%= u.id %>.svg" alt="" width="20" height="20">Continue with <%= u.name %></button>
 <% }) %>
-</form>
+  </form>
 <% } %>
-<div class="band">
+<% if (it.clientPrivacy || it.clientTerms) { %>
+  <p class="legal">Before using <%= it.clientName %>, you can review its <% if (it.clientPrivacy) { %><a href="<%= it.clientPrivacy %>">Privacy Policy</a><% } %><% if (it.clientPrivacy && it.clientTerms) { %> and <% } %><% if (it.clientTerms) { %><a href="<%= it.clientTerms %>">Terms</a><% } %>.</p>
+<% } %>
+  <div class="actions">
 <% if (it.create) { %>
-  <p>Already have an account? Enter its <%= it.phones ? "email or phone" : "email" %> and you'll sign in.</p>
+    <a class="btn ghost" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Sign in instead</a>
 <% } else { %>
-  <p>New here? Enter your <%= it.phones ? "email or phone" : "email" %> to create an account.</p>
+    <a class="btn ghost" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>&amp;create=1">Create account</a>
 <% } %>
+    <button type="submit" form="identify" name="action" value="identify" class="btn">Next</button>
+  </div>
 </div>

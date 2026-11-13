@@ -1,9 +1,16 @@
 <% layout('./layout') %>
-<h1 id="title">Sign out of <%= it.providerName %>?</h1>
-<p class="lede">Every app you signed in to through <%= it.providerName %> on this device will be signed out too.</p>
-<form method="post" action="/logout">
-  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
-  <input type="hidden" name="logout_challenge" value="<%= it.challenge %>">
-  <button type="submit" name="action" value="sign_out" class="btn">Sign out</button>
-  <button type="submit" name="action" value="cancel" class="btn secondary">Stay signed in</button>
-</form>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Sign out of <%= it.providerName %>?</h1>
+</div>
+<div class="form">
+  <p class="text-block">You will be signed out of every app that uses <%= it.providerName %> on this browser.</p>
+  <form method="post" action="/logout">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="logout_challenge" value="<%= it.challenge %>">
+    <div class="actions">
+      <button type="submit" name="action" value="cancel" class="btn ghost">Cancel</button>
+      <button type="submit" name="action" value="sign_out" class="btn">Sign out</button>
+    </div>
+  </form>
+</div>
