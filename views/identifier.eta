@@ -10,6 +10,9 @@
 <% } %>
 </div>
 <div class="form">
+<% if (it.notice) { %>
+  <p class="notice" role="status"><%= it.notice %></p>
+<% } %>
   <form id="identify" method="post" action="/login" novalidate>
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
     <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
