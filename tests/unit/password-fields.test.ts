@@ -94,7 +94,7 @@ describe('the sign-up screen, with password.js', () => {
     type('password', 'Abcdefg1');
     expect(match.hidden).toBe(true);
     type('confirm', 'Abcdef');
-    expect([match.hidden, match.textContent]).toEqual([false, "Passwords don't match yet"]);
+    expect([match.hidden, match.textContent]).toEqual([false, "Passwords don't match"]);
     type('confirm', 'Abcdefg1');
     expect([match.textContent, match.classList.contains('met')]).toEqual(['Passwords match', true]);
   });
@@ -109,6 +109,21 @@ describe('the sign-up screen, with password.js', () => {
     expect(met()).toEqual([false, false, false]);
     type('password', 'Abcdefg1');
     expect($('#rules li').classList.contains('unmet')).toBe(false);
+  });
+
+  it('marks each rule green when met and red when not, neutral when empty', () => {
+    const { $, type } = screen('signup');
+    const marks = () =>
+      [...$('#rules').querySelectorAll('li')].map((li) =>
+        li.classList.contains('met') ? 'ok' : li.classList.contains('unmet') ? 'bad' : '-',
+      );
+    expect(marks()).toEqual(['-', '-', '-']);
+    type('password', 'abcdefgh');
+    expect(marks()).toEqual(['ok', 'bad', 'bad']);
+    type('password', 'Abcdefg1');
+    expect(marks()).toEqual(['ok', 'ok', 'ok']);
+    type('password', '');
+    expect(marks()).toEqual(['-', '-', '-']);
   });
 });
 

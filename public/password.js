@@ -3,9 +3,10 @@
  * file every screen still works: the rules are listed, and the server checks them on submit.
  * With it:
  *   - every password field gets a show/hide button;
- *   - the rules list ticks each rule as it is met, with the same tests the server applies
+ *   - the rules list marks each rule green when met and red when not, with the same tests the
+ *     server applies
  *     (src/credentials/password.service.ts checkPassword);
- *   - "Confirm password" says whether the two match;
+ *   - "Confirm password" says whether the two match, green or red;
  *   - the code field is shown as one box per digit, and its button waits for every digit.
  * The only script these pages may run (Content-Security-Policy: script-src 'self').
  */
@@ -97,9 +98,10 @@
     items.forEach(function (li) {
       var test = TESTS[li.getAttribute('data-rule')];
       var met = test ? test(pw, Number(li.getAttribute('data-value'))) : false;
-      // Typing clears the server's red marks; a rule now reads met or not yet.
+      // Green when met; red once there is something typed that doesn't meet it yet. An empty
+      // field shows every rule neutral (this also clears the server's red marks).
       li.classList.toggle('met', met);
-      li.classList.remove('unmet');
+      li.classList.toggle('unmet', !met && pw.length > 0);
       var state = li.querySelector('.state');
       if (state) state.textContent = met ? ' (done)' : ' (not yet)';
     });
@@ -115,7 +117,7 @@
     var same = confirm.value === password.value;
     match.hidden = false;
     match.classList.toggle('met', same);
-    match.textContent = same ? 'Passwords match' : "Passwords don't match yet";
+    match.textContent = same ? 'Passwords match' : "Passwords don't match";
   }
 
   password.addEventListener('input', update);

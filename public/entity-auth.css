@@ -39,6 +39,7 @@
   --ring-focus: rgba(0, 0, 0, 0.2);
   --check-done: #000000;
   --status-error: #b14848;
+  --status-ok: #1a7f37;
   --status-error-bg: #fbeeee;
   --tag-neutral: #f5f5f5;
   --font: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -360,21 +361,41 @@ input.text[aria-invalid='true']:focus {
   background: url(/assets/icons/check-unmet.svg) center / 16px no-repeat;
 }
 .rules li.met {
-  color: var(--text-primary);
+  color: var(--status-ok);
 }
 .rules li.met::before {
-  background-image: url(/assets/icons/check-met.svg);
+  background-image: url(/assets/icons/rule-ok.svg);
 }
 .rules li.unmet {
   color: var(--status-error);
 }
+.rules li.unmet::before {
+  background-image: url(/assets/icons/rule-bad.svg);
+}
 .match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
   font-size: 13px;
   line-height: 20px;
-  color: var(--text-tertiary);
+  color: var(--status-error);
+}
+.match[hidden] {
+  display: none;
+}
+.match::before {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background: url(/assets/icons/rule-bad.svg) center / 16px no-repeat;
 }
 .match.met {
-  color: var(--text-primary);
+  color: var(--status-ok);
+}
+.match.met::before {
+  background-image: url(/assets/icons/rule-ok.svg);
 }
 
 /* The code: one box per digit (public/password.js); a plain field without the script. */
