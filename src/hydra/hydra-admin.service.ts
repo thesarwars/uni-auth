@@ -13,6 +13,8 @@ import { env } from '../config/env';
 const Client = z.object({
   client_id: z.string(),
   client_name: z.string().optional().default(''),
+  /** The app's home page: where the account centre's app list links to. */
+  client_uri: z.string().optional().default(''),
   logo_uri: z.string().optional().default(''),
   policy_uri: z.string().optional().default(''),
   tos_uri: z.string().optional().default(''),
@@ -169,6 +171,12 @@ export class HydraAdmin {
       'PUT',
       `/admin/oauth2/auth/requests/logout/reject?logout_challenge=${enc(challenge)}`,
     );
+  }
+
+  /** Every registered client (there are a handful; the files in deploy/hydra/ are the list). */
+  async listClients(): Promise<HydraClient[]> {
+    const res = await this.call('GET', '/admin/clients?page_size=500');
+    return z.array(Client).parse(await res.json());
   }
 
   async ready(): Promise<boolean> {

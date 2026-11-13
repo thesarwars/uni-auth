@@ -1,6 +1,7 @@
 {
   "client_id": "gsn-web",
   "client_name": "Go Style Network",
+  "client_uri": "${GSN_WEB_ORIGIN}",
   "token_endpoint_auth_method": "none",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],

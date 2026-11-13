@@ -86,6 +86,15 @@ describe('signing in to the account centre', () => {
     expect(page.html).toContain('aria-current="page"');
   });
 
+  it('starts at the bare domain, and at /login with no sign-in in progress', async () => {
+    for (const path of ['/', '/login']) {
+      const m = await createMember();
+      const { page } = await signIn(m, path);
+      expect(page.html).toContain('<h1 id="title">Your account</h1>');
+      expect(page.html).toContain(m.email);
+    }
+  });
+
   it('ends when the provider session is revoked elsewhere', async () => {
     const m = await createMember();
     const { b } = await signIn(m);
