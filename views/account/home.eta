@@ -6,6 +6,13 @@
   <span class="avatar-i" aria-hidden="true"><%= it.initials %></span>
   <h1 id="title"><%= it.name || 'Your account' %></h1>
   <p><%= it.who %></p>
+<% if (it.apps && it.apps.length) { %>
+  <ul class="apps" aria-label="Apps you can use with this account">
+<% it.apps.forEach(function (a) { %>
+    <li><a class="app" href="<%= a.url %>"><% if (a.logo) { %><img src="<%= a.logo %>" alt="" width="20" height="20"><% } %><%= a.name %></a></li>
+<% }) %>
+  </ul>
+<% } %>
 </section>
 <section class="panel" aria-labelledby="h-check">
   <div class="panel-head">

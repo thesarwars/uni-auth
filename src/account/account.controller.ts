@@ -19,6 +19,7 @@ import {
 } from '../identity/identity.repository';
 import { SessionEnder } from '../sessions/session-ender';
 import { ACCOUNT_CLIENT_ID, AccountOidc, AccountSignInFailed } from './account-oidc';
+import { AccountApps } from './account-apps';
 import { AccountSessions, type AccountSession } from './account-sessions';
 
 const SESSION_COOKIE = 'ea_account';
@@ -86,6 +87,7 @@ export class AccountController {
     private readonly email: EmailSender,
     private readonly whatsapp: WhatsAppSender,
     private readonly sessionEnder: SessionEnder,
+    private readonly apps: AccountApps,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -196,10 +198,11 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account');
     if (!s) return;
-    const { profile, identifiers } = await this.load(s);
+    const [{ profile, identifiers }, apps] = await Promise.all([this.load(s), this.apps.list()]);
     await this.page(reply, s, 'account/home', 'Your account', 'home', {
       profile,
       identifiers,
+      apps,
       done: flash(done),
     });
   }

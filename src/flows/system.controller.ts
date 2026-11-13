@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Res, ServiceUnavailableException } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
-import { renderError } from '../common/pages';
+import { redirect, renderError } from '../common/pages';
 import { Database } from '../db/database.service';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
 import { RedisService } from '../redis/redis.service';
@@ -32,6 +32,15 @@ export class SystemController {
       "We couldn't sign you in",
       detail || 'The app that sent you here made a request we could not accept.',
     );
+  }
+
+  /**
+   * The bare domain: the account centre, which asks a signed-out visitor for their email first
+   * (it starts a sign-in) and brings them back to it after.
+   */
+  @Get()
+  async root(@Res() reply: FastifyReply): Promise<void> {
+    await redirect(reply, '/account');
   }
 
   @Get('health')

@@ -124,6 +124,11 @@ export class LoginController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
+    // /login opened directly, with no app's sign-in in progress: sign in to the account centre.
+    if (raw === undefined || raw === '') {
+      await redirect(reply, '/account');
+      return;
+    }
     const challenge = parse(Challenge, raw);
     const request = await this.hydra.getLogin(challenge);
 
@@ -957,14 +962,17 @@ function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
     confirm: confirmSubject(request) !== null,
     challenge,
     clientName: clientName(request.client),
-    clientLogo: clientLogo(request.client.metadata?.product),
+    clientLogo: isOwn(request.client)
+      ? '/assets/entity-auth.svg'
+      : clientLogo(request.client.metadata?.product),
     clientPrivacy: webUrl(request.client.policy_uri),
     clientTerms: webUrl(request.client.tos_uri),
     // The deployment's own terms, for "By creating an account, you agree to ...".
     terms: env.TERMS_URL || null,
     privacy: env.PRIVACY_URL || null,
-    // The way back: cancels the sign-in, so the client hears access_denied.
-    backTo: clientName(request.client),
+    // The way back: cancels the sign-in, so the client hears access_denied. None on Entity's own
+    // sign-in (the account centre): there is no other app to go back to.
+    backTo: isOwn(request.client) ? null : clientName(request.client),
     csrfToken: reply.generateCsrf(),
   };
 }
@@ -1014,7 +1022,15 @@ function upstreamNames(kinds: CredentialKind[]): string {
   return names.join(' or ');
 }
 
-export function clientName(client: { client_name: string; client_id: string }): string {
+type Named = { client_name: string; client_id: string; metadata?: Record<string, unknown> | null };
+
+/** Entity's own clients (the account centre): signing in to them is signing in to Entity. */
+function isOwn(client: Named): boolean {
+  return client.metadata?.product === 'uni-auth';
+}
+
+export function clientName(client: Named): string {
+  if (isOwn(client)) return `${env.PROVIDER_NAME} Account`;
   return client.client_name || client.client_id;
 }
 

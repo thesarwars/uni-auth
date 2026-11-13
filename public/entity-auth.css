@@ -939,6 +939,44 @@ input.text[aria-invalid='true']:focus {
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
+/* The apps this account signs in to (AccountApps), under the address. */
+.apps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.app {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.app:hover {
+  background: var(--bg-hover);
+}
+.app:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 4px var(--ring-focus);
+}
+.app img {
+  border-radius: 6px;
+}
+.app:not(:has(img)) {
+  padding-left: 14px;
+}
 .flash {
   display: flex;
   align-items: center;
