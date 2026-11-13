@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '../config/env';
+import { renderEmail } from './email-template';
 import { Outbox } from './outbox';
 
 /**
@@ -30,24 +31,39 @@ export class EmailSender {
     purpose: 'sign_in' | 'recovery' | 'signup' | 'add_identifier',
   ): Promise<void> {
     const minutes = Math.round(env.OTP_TTL_SECONDS / 60);
-    const what =
-      purpose === 'recovery'
-        ? 'reset your password'
-        : purpose === 'signup'
-          ? 'create your account'
-          : purpose === 'add_identifier'
-            ? `add this email address to your ${env.PROVIDER_NAME} account`
-            : 'sign in';
-    const subject = `Your ${env.PROVIDER_NAME} code: ${code}`;
+    const P = env.PROVIDER_NAME;
+    const copy = {
+      sign_in: { title: 'Your sign-in code', intro: `Enter this code to sign in with ${P}.` },
+      signup: {
+        title: 'Confirm your email',
+        intro: `Enter this code to finish creating your ${P} account.`,
+      },
+      recovery: {
+        title: 'Reset your password',
+        intro: `Enter this code to choose a new password for your ${P} account.`,
+      },
+      add_identifier: {
+        title: 'Confirm this email address',
+        intro: `Enter this code to add this email address to your ${P} account.`,
+      },
+    }[purpose];
+    const subject = `Your ${P} code: ${code}`;
+    const note =
+      "If you didn't ask for this code, you can ignore this email. Nobody can sign in without it, " +
+      `and ${P} will never ask you to share it.`;
     const text =
-      `Your code to ${what} is ${code}.\n\n` +
-      `It expires in ${minutes} minutes and works once. ` +
-      `If you did not ask for it, you can ignore this email; nobody can sign in without it.`;
-    const html =
-      `<p>Your code to ${what} is</p>` +
-      `<p><strong style="font-size:24px;letter-spacing:4px">${code}</strong></p>` +
-      `<p style="color:#666;font-size:13px">It expires in ${minutes} minutes and works once. ` +
-      `If you did not ask for it, you can ignore this email; nobody can sign in without it.</p>`;
+      `${copy.title}\n\n${copy.intro}\n\n${code}\n\n` +
+      `It expires in ${minutes} minutes and works once.\n\n${note}`;
+    const html = renderEmail({
+      provider: P,
+      preview: `${code} is your code. It expires in ${minutes} minutes.`,
+      title: copy.title,
+      intro: copy.intro,
+      code,
+      codeNote: `Expires in ${minutes} minutes. Works once.`,
+      note,
+      footer: `You're getting this email because someone entered this address in ${P}.`,
+    });
 
     if (!this.transport) {
       this.logger.warn(`EMAIL_DELIVERY=log; ${purpose} code for ${to} is ${code}`);
@@ -63,13 +79,21 @@ export class EmailSender {
    * logged, not thrown.
    */
   async sendNotice(to: string, subject: string, lines: string[]): Promise<void> {
+    const P = env.PROVIDER_NAME;
     const footer =
-      `If this wasn't you, sign in to your ${env.PROVIDER_NAME} account, change your password ` +
+      `If this wasn't you, sign in to your ${P} account, change your password ` +
       `and check your email addresses and phone numbers.`;
     const text = [...lines, '', footer].join('\n');
-    const html =
-      lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('') +
-      `<p style="color:#666;font-size:13px">${escapeHtml(footer)}</p>`;
+    const html = renderEmail({
+      provider: P,
+      preview: lines[0] ?? subject,
+      title: subject,
+      intro: lines[0] ?? '',
+      lines: lines.slice(1),
+      button: { label: 'Review your account', href: `${env.LOGIN_PUBLIC_URL}/account` },
+      note: footer,
+      footer: `Security notices about your ${P} account are always sent and can't be turned off.`,
+    });
     if (!this.transport) {
       this.logger.warn(`EMAIL_DELIVERY=log; notice to ${to}: ${subject}`);
       this.outbox.notice({ to, subject, text });
@@ -88,9 +112,3 @@ export class EmailSender {
     }
   }
 }
-
-const escapeHtml = (s: string): string =>
-  s.replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
-  );
