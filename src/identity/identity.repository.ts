@@ -180,6 +180,34 @@ export class IdentityRepository {
     return row?.id ?? null;
   }
 
+  /**
+   * Whether a sign-in about to open session `sid` comes from a device the member has not used
+   * lately (account-plan.md section 4, new-device alert): they have signed in before, but no
+   * session in the last 90 days had this device and country. A first sign-in (sign-up) and the
+   * same sid seen again are not new.
+   */
+  async isNewDevice(
+    db: Db,
+    identityId: string,
+    sid: string,
+    deviceLabel: string | null,
+    geoCountry: string | null,
+  ): Promise<boolean> {
+    const row = await one<{ fresh: boolean }>(
+      db,
+      `SELECT EXISTS (SELECT 1 FROM auth_session WHERE identity_id = $1 AND sid <> $2)
+          AND NOT EXISTS (SELECT 1 FROM auth_session WHERE sid = $2)
+          AND NOT EXISTS (
+                SELECT 1 FROM auth_session
+                 WHERE identity_id = $1 AND sid <> $2
+                   AND created_at > now() - interval '90 days'
+                   AND device_label IS NOT DISTINCT FROM $3
+                   AND geo_country IS NOT DISTINCT FROM $4) AS fresh`,
+      [identityId, sid, deviceLabel, geoCountry],
+    );
+    return row?.fresh ?? false;
+  }
+
   /** The session behind a single sign-on, marked as seen if it is still good. */
   async seeSession(sid: string): Promise<SessionState | null> {
     return this.db.tx(async (db) => {

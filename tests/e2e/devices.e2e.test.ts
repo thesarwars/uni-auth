@@ -1,5 +1,6 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Outbox } from '../../src/delivery/outbox';
 import { IdentityRepository } from '../../src/identity/identity.repository';
 import { startApp } from '../support/app';
 import { APP, HYDRA, browser, formFields, type Browser, type Hop } from '../support/browser';
@@ -23,8 +24,12 @@ afterAll(async () => {
 
 const csrf = (page: Hop): string => /name="_csrf" value="([^"]+)"/.exec(page.html)![1]!;
 
-async function signIn(m: Member, path = '/account'): Promise<{ b: Browser; page: Hop }> {
-  const b = browser();
+async function signIn(
+  m: Member,
+  path = '/account',
+  userAgent?: string,
+): Promise<{ b: Browser; page: Hop }> {
+  const b = browser(userAgent);
   let { hop: page } = await b.follow(`${APP}${path}`);
   page = await b.post(`${APP}/login`, {
     ...formFields(page.html),
@@ -201,6 +206,37 @@ describe('device and place at sign-in', () => {
       [m.identityId],
     );
     expect(rows).toEqual([{ device_label: null, geo_city: null, geo_country: null }]);
+  });
+});
+
+describe('new-device email', () => {
+  const MAC =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+  const IPHONE =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
+  const alerts = (m: Member) =>
+    app
+      .get(Outbox)
+      .noticesTo(m.email)
+      .filter((n) => n.subject === 'New sign-in to your account');
+
+  it('is sent for a device not seen lately, and not for the first or a familiar one', async () => {
+    const m = await createMember();
+    await signIn(m, '/account', MAC);
+    expect(alerts(m)).toHaveLength(0);
+    await signIn(m, '/account', MAC);
+    expect(alerts(m)).toHaveLength(0);
+
+    await signIn(m, '/account', IPHONE);
+    const [n, ...more] = alerts(m);
+    expect(more).toHaveLength(0);
+    expect(n!.text).toContain('Device: Safari on iPhone');
+    expect(n!.text).toMatch(/When: \d{1,2} \w+ \d{4} at \d{2}:\d{2} UK time/);
+    // No GeoIP database in the tests: no location line rather than a blank one.
+    expect(n!.text).not.toContain('Location:');
+
+    await signIn(m, '/account', IPHONE);
+    expect(alerts(m)).toHaveLength(1);
   });
 });
 

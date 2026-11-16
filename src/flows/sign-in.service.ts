@@ -5,7 +5,8 @@ import { redirect, renderError } from '../common/pages';
 import { env } from '../config/env';
 import { describeDevice } from '../account/device';
 import { Database } from '../db/database.service';
-import { GeoIp } from '../geo/geoip.service';
+import { EmailSender } from '../delivery/email.sender';
+import { countryName, GeoIp } from '../geo/geoip.service';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { IdentityRepository, type CredentialKind } from '../identity/identity.repository';
 import { RedisService } from '../redis/redis.service';
@@ -37,6 +38,7 @@ export class SignIn {
     private readonly identities: IdentityRepository,
     private readonly redis: RedisService,
     private readonly geo: GeoIp,
+    private readonly email: EmailSender,
   ) {}
 
   /**
@@ -76,9 +78,12 @@ export class SignIn {
     if (!sid) throw new Error('Hydra sent a login request with no session id');
 
     // The device and place, recorded with the session (account-plan.md section 5).
-    const device = describeDevice(seen.userAgent).name;
+    const device = describeDevice(seen.userAgent);
+    const label = device.name === 'Unknown device' ? null : device.name;
     const at = this.geo.locate(seen.ip);
+    let newDevice = false;
     const opened = await this.db.tx(async (db) => {
+      newDevice = await this.identities.isNewDevice(db, a.identityId, sid, label, at.country);
       const sessionId = await this.identities.openSession(db, {
         identityId: a.identityId,
         credentialId: a.credentialId,
@@ -87,7 +92,7 @@ export class SignIn {
         ip: seen.ip,
         userAgent: seen.userAgent,
         lifetimeSeconds: env.REMEMBER_SECONDS,
-        deviceLabel: device === 'Unknown device' ? null : device,
+        deviceLabel: label,
         geoCity: at.city,
         geoCountry: at.country,
       });
@@ -133,7 +138,43 @@ export class SignIn {
       context: { auth_time: Math.floor(Date.now() / 1000) },
     });
     await this.redis.client.set(doneKey(challenge), to, 'EX', DONE_SECONDS);
+    if (newDevice) await this.alertNewDevice(a.identityId, device, at);
     return to;
+  }
+
+  /**
+   * The new-device security email (account-plan.md section 3), to the primary email. It never
+   * holds up the sign-in: the address is looked up, the send itself is not waited for, and
+   * sendNotice never throws.
+   */
+  private async alertNewDevice(
+    identityId: string,
+    device: { name: string; browser: string | null },
+    at: { city: string | null; country: string | null },
+  ): Promise<void> {
+    try {
+      const to = await this.identities.primaryIdentifier(identityId);
+      if (to?.kind !== 'email') return;
+      const what = device.browser ? `${device.browser} on ${device.name}` : device.name;
+      const where = [at.city, countryName(at.country)].filter(Boolean).join(', ');
+      const when = new Date().toLocaleString('en-GB', {
+        timeZone: 'Europe/London',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      void this.email.sendNotice(to.value, 'New sign-in to your account', [
+        `Your ${env.PROVIDER_NAME} account was just signed in to from a device we haven't seen lately.`,
+        `Device: ${what}`,
+        ...(where ? [`Location: ${where} (approximate)`] : []),
+        `When: ${when} UK time`,
+        "If this was you, there's nothing to do.",
+      ]);
+    } catch {
+      // A missed alert must not turn a good sign-in into an error page.
+    }
   }
 }
 
