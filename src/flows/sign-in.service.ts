@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import type { FastifyReply } from 'fastify';
 import { redirect, renderError } from '../common/pages';
 import { env } from '../config/env';
+import { describeDevice } from '../account/device';
 import { Database } from '../db/database.service';
+import { GeoIp } from '../geo/geoip.service';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { IdentityRepository, type CredentialKind } from '../identity/identity.repository';
 import { RedisService } from '../redis/redis.service';
@@ -34,6 +36,7 @@ export class SignIn {
     private readonly db: Database,
     private readonly identities: IdentityRepository,
     private readonly redis: RedisService,
+    private readonly geo: GeoIp,
   ) {}
 
   /**
@@ -72,6 +75,9 @@ export class SignIn {
     const sid = request.session_id;
     if (!sid) throw new Error('Hydra sent a login request with no session id');
 
+    // The device and place, recorded with the session (account-plan.md section 5).
+    const device = describeDevice(seen.userAgent).name;
+    const at = this.geo.locate(seen.ip);
     const opened = await this.db.tx(async (db) => {
       const sessionId = await this.identities.openSession(db, {
         identityId: a.identityId,
@@ -81,6 +87,9 @@ export class SignIn {
         ip: seen.ip,
         userAgent: seen.userAgent,
         lifetimeSeconds: env.REMEMBER_SECONDS,
+        deviceLabel: device === 'Unknown device' ? null : device,
+        geoCity: at.city,
+        geoCountry: at.country,
       });
       if (!sessionId) return null;
       if (a.credentialId) await this.identities.markUsed(db, a.credentialId);

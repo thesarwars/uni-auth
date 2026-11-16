@@ -7,6 +7,12 @@ import { env } from '../config/env';
 /** Where an IP address is, in words a member knows: a city, else a country. */
 export type Place = (ip: string | null | undefined) => string | null;
 
+/** What a session records at sign-in: the city, and the country as ISO 3166-1 alpha-2. */
+export interface Located {
+  city: string | null;
+  country: string | null;
+}
+
 /**
  * Approximate location from a local MaxMind GeoLite2 City database (account-plan.md AC-D6,
  * OQ-AC-8): the lookup happens here, so no address is ever sent to a third party. The file is
@@ -58,14 +64,39 @@ export class GeoIp implements OnModuleInit, OnModuleDestroy {
     return this.reader !== null;
   }
 
-  readonly place: Place = (ip) => {
+  readonly place: Place = (ip) => placeOf(this.find(ip));
+
+  /** The city and country code to record with a new session; both null when unknown. */
+  locate(ip: string | null | undefined): Located {
+    return locatedOf(this.find(ip));
+  }
+
+  private find(ip: string | null | undefined): CityResponse | null {
     if (!this.reader || !ip || !isIP(ip)) return null;
     try {
-      return placeOf(this.reader.get(ip));
+      return this.reader.get(ip);
     } catch {
       return null;
     }
-  };
+  }
+}
+
+export function locatedOf(r: CityResponse | null | undefined): Located {
+  const city = r?.city?.names?.en?.slice(0, 100) || null;
+  const iso = r?.country?.iso_code;
+  return { city, country: iso && /^[A-Z]{2}$/.test(iso) ? iso : null };
+}
+
+const regions = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** "GB" -> "United Kingdom"; null for no code. */
+export function countryName(code: string | null | undefined): string | null {
+  if (!code) return null;
+  try {
+    return regions.of(code) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** The English city name, else the country's; null for a private or unknown address. */

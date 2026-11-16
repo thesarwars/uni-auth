@@ -214,6 +214,35 @@ describe('credential', () => {
 });
 
 describe('auth_session', () => {
+  it('records the device and place it was opened from, and keeps them fixed', async () => {
+    const a = await newIdentity();
+    const s = (
+      await one<{ id: string }>(
+        `INSERT INTO auth_session (identity_id, sid, expires_at, device_label, geo_city, geo_country)
+         VALUES ($1, 'dev', now() + interval '1 day', 'iPhone', 'London', 'GB') RETURNING id`,
+        [a],
+      )
+    ).id;
+    for (const set of ["device_label = 'Mac'", "geo_city = 'Leeds'", 'geo_country = NULL']) {
+      expect(await refused(`UPDATE auth_session SET ${set} WHERE id = $1`, [s])).toMatch(
+        /device and place it was opened from are fixed/,
+      );
+    }
+    await q('UPDATE auth_session SET last_seen_at = now() WHERE id = $1', [s]);
+    expect(
+      await refused(
+        "INSERT INTO auth_session (identity_id, sid, expires_at, geo_country) VALUES ($1, 'gb', now() + interval '1 day', 'gb')",
+        [a],
+      ),
+    ).toMatch(/auth_session_geo_country_iso/);
+    expect(
+      await refused(
+        "INSERT INTO auth_session (identity_id, sid, expires_at, device_label) VALUES ($1, 'empty', now() + interval '1 day', '')",
+        [a],
+      ),
+    ).toMatch(/auth_session_device_label_bounded/);
+  });
+
   it('opens only on an active identity and a live credential of its own', async () => {
     const a = await newIdentity();
     const b = await newIdentity();
