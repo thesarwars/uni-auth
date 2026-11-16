@@ -10,7 +10,11 @@
   "redirect_uris": ["${GSN_WEB_ORIGIN}/callback", "http://localhost:3000/callback"],
   "post_logout_redirect_uris": ["${GSN_WEB_ORIGIN}/", "http://localhost:3000/"],
   "skip_consent": true,
-  "metadata": { "first_party": true, "product": "gsn" },
+  "metadata": {
+    "first_party": true,
+    "product": "gsn",
+    "initiate_login_uri": "${GSN_WEB_ORIGIN}/login"
+  },
   "backchannel_logout_uri": "${GSN_API_URL}/v1/uni-auth/backchannel-logout",
   "backchannel_logout_session_required": true
 }
