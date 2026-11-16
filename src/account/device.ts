@@ -229,7 +229,16 @@ export function activityView(
         return { icon: 'lock-20', title: 'Password changed' };
       case 'password_reset':
         return { icon: 'lock-20', title: 'Password reset' };
+      case 'mfa_enabled':
+        return { icon: 'shield-20', title: '2-step verification turned on' };
+      case 'mfa_disabled':
+        return { icon: 'shield-20', title: '2-step verification turned off' };
+      case 'recovery_code_used':
+        return { icon: 'key', title: 'Recovery code used to sign in' };
       case 'credential_added':
+        if (e.credentialKind === 'recovery_codes') {
+          return { icon: 'key', title: 'New recovery codes made' };
+        }
         if (e.credentialKind && PROVIDER[e.credentialKind]) {
           return {
             icon: PROVIDER_ICON[e.credentialKind]!,

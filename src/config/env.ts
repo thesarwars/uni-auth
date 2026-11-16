@@ -102,6 +102,20 @@ const Env = z.object({
    */
   GEOIP_DB_PATH: z.string().default(''),
 
+  /**
+   * 2-step verification's key: 64 hex characters (32 bytes). Authenticator seeds are encrypted
+   * under it and recovery codes keyed-hashed with it, so the database alone holds neither.
+   * Unset, 2-step verification can't be turned on. Never change it once members use it: their
+   * authenticators would stop working.
+   */
+  MFA_ENCRYPTION_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .regex(/^[0-9a-fA-F]{64}$/, 'must be 64 hex characters: openssl rand -hex 32')
+      .optional(),
+  ),
+
   /** How long the provider remembers a sign-in: the 90-day ceiling auth_session enforces. */
   REMEMBER_SECONDS: z.coerce
     .number()

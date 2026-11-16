@@ -7,7 +7,10 @@ cd "$(dirname "$0")/.."
 umask 077
 touch .env
 rand() { openssl rand -hex 32; }
-add() { grep -q "^$1=" .env || { echo "$1=$2" >> .env; echo "added $1"; }; }
+# A file edited by hand may not end in a newline: appending then would glue the new line onto
+# the last value.
+endline() { [[ ! -s .env || -z "$(tail -c 1 .env)" ]] || echo >> .env; }
+add() { grep -q "^$1=" .env || { endline; echo "$1=$2" >> .env; echo "added $1"; }; }
 
 add HYDRA_DB_PASSWORD "$(rand)"
 add HYDRA_SECRETS_SYSTEM "$(rand)"
@@ -16,6 +19,7 @@ add UNI_AUTH_SERVICE_SECRET "$(rand)"
 add ENTITY_AUTH_ACCOUNT_SECRET "$(rand)"
 add HYDRA_HOOK_SECRET "$(rand)"
 add COOKIE_SECRET "$(rand)"
+add MFA_ENCRYPTION_KEY "$(rand)"
 add HYDRA_ADMIN_URL "http://127.0.0.1:4445"
 add HYDRA_PUBLIC_URL "http://localhost:4444"
 add REDIS_URL "redis://127.0.0.1:6380"

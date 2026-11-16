@@ -1,0 +1,37 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <a class="back" href="/account/two-step"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">2-step verification</a>
+  <h1 id="title">Turn on 2-step verification</h1>
+</div>
+<section class="panel pad" aria-labelledby="h-scan">
+  <ol class="steps">
+    <li>
+      <h2 id="h-scan">Scan this QR code with your authenticator app</h2>
+      <div class="qr-row">
+        <div class="qr" role="img" aria-label="QR code for your authenticator app"><%~ it.qr %></div>
+        <div class="qr-key">
+          <p class="notice">Can’t scan it? Choose “Enter a setup key” in the app and type:</p>
+          <p class="key" aria-label="Setup key"><%= it.key %></p>
+          <p class="hint">Account: <%= it.account %> · Time-based</p>
+        </div>
+      </div>
+    </li>
+    <li>
+      <h2 id="h-code">Enter the 6-digit code the app shows</h2>
+      <form id="verify" method="post" action="/account/two-step/setup">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <div class="code"<% if (it.error) { %> data-invalid<% } %>>
+          <label for="code" class="sr">6-digit code</label>
+          <input id="code" class="text" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" data-length="6" required<% if (it.error) { %> autofocus aria-invalid="true" aria-describedby="code-error"<% } %>>
+<% if (it.error) { %>
+          <p id="code-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p>
+<% } %>
+        </div>
+      </form>
+    </li>
+  </ol>
+  <div class="actions">
+    <a class="btn ghost" href="/account/two-step">Cancel</a>
+    <button type="submit" form="verify" class="btn">Turn on</button>
+  </div>
+</section>

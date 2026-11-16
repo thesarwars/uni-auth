@@ -1,0 +1,19 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <h1 id="title">Save your recovery codes</h1>
+</div>
+<section class="panel pad" aria-labelledby="h-codes">
+  <div class="panel-head bare">
+    <h2 id="h-codes">If you lose your phone, these get you in</h2>
+    <p>Each code works once, instead of a code from your app. Keep them somewhere safe, like a password manager. You won’t see them again<%= it.first ? '' : ', and your old codes no longer work' %>.</p>
+  </div>
+  <ul class="codes" aria-label="Recovery codes">
+<% it.codes.forEach(function (c) { %>
+    <li><%= c %></li>
+<% }) %>
+  </ul>
+  <div class="actions">
+    <a class="btn stroke" href="<%= it.download %>" download="entity-recovery-codes.txt">Download</a>
+    <a class="btn" href="/account/two-step<%= it.first ? '?done=two_step_on' : '?done=codes_saved' %>">I’ve saved them</a>
+  </div>
+</section>

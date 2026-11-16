@@ -1,0 +1,59 @@
+<% layout('./layout') %>
+<% var recovery = it.mode === 'recovery'; %>
+<% var self = '/login/two-step?login_challenge=' + encodeURIComponent(it.challenge); %>
+<div class="intro">
+<%~ include('./_logo', it) %>
+<% if (it.locked) { %>
+  <h1 id="title">Too many wrong codes</h1>
+<% } else { %>
+  <h1 id="title">2-step verification</h1>
+<% } %>
+<% if (it.identifier) { %>
+<%~ include('./_pill', it) %>
+<% } %>
+</div>
+<div class="form">
+<% if (it.locked) { %>
+  <p class="text-block" role="alert">For your security, signing in to this account is paused for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>. Try again after that.</p>
+  <div class="actions">
+    <a class="btn" href="<%= self %>">Try again</a>
+  </div>
+<% } else { %>
+<% if (recovery) { %>
+  <p class="text-block">Enter one of the recovery codes you saved when you turned on 2-step verification. Each code works once.</p>
+<% } else { %>
+  <p class="text-block">Open your authenticator app and enter the 6-digit code it shows for <strong><%= it.providerName %></strong>.</p>
+<% } %>
+  <form id="verify" method="post" action="/login/two-step">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+    <input type="hidden" name="mode" value="<%= it.mode %>">
+<% if (recovery) { %>
+    <div class="field">
+      <label for="code">Recovery code</label>
+      <input id="code" class="text mono" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXXX-XXXXX" required autofocus<% if (it.error) { %> aria-invalid="true" aria-describedby="code-error"<% } %>>
+<% if (it.error) { %>
+      <p id="code-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></span></p>
+<% } %>
+    </div>
+<% } else { %>
+    <div class="code"<% if (it.error) { %> data-invalid<% } %>>
+      <label for="code" class="sr">6-digit code</label>
+      <input id="code" class="text" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" data-length="6" required autofocus<% if (it.error) { %> aria-invalid="true" aria-describedby="code-error"<% } %>>
+<% if (it.error) { %>
+      <p id="code-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %><% if (it.remaining !== null) { %> <%= it.remaining === 1 ? '1 attempt' : it.remaining + ' attempts' %> left.<% } %></span></p>
+<% } %>
+    </div>
+<% } %>
+  </form>
+<% if (recovery) { %>
+  <a class="link" href="<%= self %>">Use your authenticator app instead</a>
+<% } else { %>
+  <a class="link" href="<%= self %>&amp;mode=recovery">Use a recovery code instead</a>
+<% } %>
+  <div class="actions">
+    <a class="btn ghost" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Back</a>
+    <button type="submit" form="verify" class="btn">Verify</button>
+  </div>
+<% } %>
+</div>

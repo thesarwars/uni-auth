@@ -20,6 +20,13 @@
       <span class="text"><span class="t"><%= name %></span><span class="s">You can sign in with your <%= name %> account</span></span>
     </li>
 <% }) %>
+<% if (it.twoStep.totp || it.twoStepAvailable) { %>
+    <li><a class="row" href="/account/two-step">
+      <span class="tile"><img src="<%= asset('icons/shield-20.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">2-step verification<span class="tag<%= it.twoStep.totp ? ' inverse' : '' %>"><%= it.twoStep.totp ? 'On' : 'Off' %></span></span><span class="s"><%= it.twoStep.totp ? 'A code from your authenticator app when you sign in' : 'Add a code from an app on your phone' %></span></span>
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% } %>
     <li><a class="row" href="/account/contact">
       <span class="tile"><img src="<%= asset('icons/mail.svg') %>" alt="" width="20" height="20"></span>
       <span class="text"><span class="t">A code to your email or phone</span><span class="s"><%= it.identifiers.filter(function (r) { return r.verified; }).length %> verified <%= it.identifiers.filter(function (r) { return r.verified; }).length === 1 ? 'address' : 'addresses' %></span></span>

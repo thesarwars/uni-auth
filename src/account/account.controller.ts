@@ -22,6 +22,11 @@ import { ACCOUNT_CLIENT_ID, AccountOidc, AccountSignInFailed } from './account-o
 import { AccountApps } from './account-apps';
 import { AccountSessions, type AccountSession } from './account-sessions';
 import { GeoIp } from '../geo/geoip.service';
+import QRCode from 'qrcode';
+import { MfaKeys } from '../two-step/mfa-keys';
+import { newCodes, shown } from '../two-step/recovery-codes';
+import { base32, grouped, matchStep, newSeed, otpauthUri } from '../two-step/totp';
+import { TwoStepStore } from '../two-step/two-step.store';
 import { activitiesView, describeDevice, devicesView } from './device';
 
 const SESSION_COOKIE = 'ea_account';
@@ -54,6 +59,9 @@ const DONE: Record<string, string> = {
   password_set: 'Password set. You can now sign in with it.',
   device_signed_out: 'That device has been signed out.',
   others_signed_out: 'Your other devices have been signed out.',
+  two_step_on: '2-step verification is on.',
+  two_step_off: '2-step verification is off.',
+  codes_saved: 'New recovery codes are ready. Your old ones no longer work.',
 };
 
 const ReturnTo = z
@@ -75,6 +83,7 @@ const VerifyForm = z.object({
 });
 const IdForm = z.object({ id: z.string().uuid() });
 const PasswordForm = z.object({ password: z.string().max(1024), confirm: z.string().max(1024) });
+const TotpForm = z.object({ code: z.string().max(20) });
 
 /**
  * The account centre (account-plan.md): a member's own entity-auth account - personal info,
@@ -96,6 +105,8 @@ export class AccountController {
     private readonly sessionEnder: SessionEnder,
     private readonly apps: AccountApps,
     private readonly geo: GeoIp,
+    private readonly mfa: MfaKeys,
+    private readonly twoStepStore: TwoStepStore,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -255,14 +266,17 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/security');
     if (!s) return;
-    const [{ profile, identifiers }, sessions, events] = await Promise.all([
+    const [{ profile, identifiers }, sessions, events, twoStep] = await Promise.all([
       this.load(s),
       this.identities.liveSessions(s.sub),
       this.identities.activity(s.sub, ACTIVITY_DAYS, 10),
+      this.identities.twoStep(s.sub),
     ]);
     await this.page(reply, s, 'account/security', 'Security & sign-in', 'security', {
       profile,
       identifiers,
+      twoStep,
+      twoStepAvailable: this.mfa.enabled,
       devices: devicesView(sessions, s.sid, this.geo.place).slice(0, 3),
       deviceCount: sessions.length,
       activity: activitiesView(events, this.geo.place).slice(0, 3),
@@ -701,6 +715,201 @@ export class AccountController {
       ],
     );
     await redirect(reply, `/account/password?done=${first ? 'password_set' : 'password_changed'}`);
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // 2-step verification (account-plan.md part 4)
+  // ---------------------------------------------------------------------------------------
+
+  /** Whether it is on, and what is set up. Changing anything needs a fresh sign-in (AC-D2). */
+  @Get('two-step')
+  async twoStep(
+    @Query('done') done: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/two-step');
+    if (!s) return;
+    await this.render(reply, s, 'account/two-step', '2-step verification', 'security', {
+      twoStep: await this.identities.twoStep(s.sub),
+      available: this.mfa.enabled,
+      done: flash(done),
+    });
+  }
+
+  /**
+   * Step one of turning it on: a new seed as a QR code and as a key to type. The seed waits in
+   * Redis, sealed, until a code from the app proves it was saved; a reload shows the same one.
+   */
+  @Get('two-step/setup')
+  async twoStepSetup(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/two-step/setup', { fresh: true });
+    if (!s) return;
+    if (!this.mfa.enabled || (await this.identities.hasTotp(s.sub))) {
+      await redirect(reply, '/account/two-step');
+      return;
+    }
+    await this.setupPage(reply, s);
+  }
+
+  @Post('two-step/setup')
+  async enableTwoStep(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/two-step/setup', { fresh: true });
+    if (!s) return;
+    const form = parse(TotpForm, body);
+    const sealed = await this.twoStepStore.setup(s.id);
+    if (!this.mfa.enabled || !sealed) {
+      await redirect(reply, '/account/two-step/setup');
+      return;
+    }
+    const step = matchStep(this.mfa.open(sealed, s.sub), form.code);
+    if (step === null) {
+      await this.setupPage(
+        reply,
+        s,
+        "That code isn't right. Enter the 6-digit code your app shows now.",
+      );
+      return;
+    }
+    const codes = newCodes();
+    try {
+      await this.db.tx(async (db) => {
+        await this.identities.enableTotp(db, {
+          identityId: s.sub,
+          sealed,
+          step,
+          codeHashes: codes.map((c) => this.mfa.hashCode(c)),
+        });
+        await this.identities.event(
+          { ...this.seen(req, s), kind: 'mfa_enabled', outcome: 'success', credentialKind: 'totp' },
+          db,
+        );
+      });
+    } catch (err) {
+      // On already (another tab got there first): the schema allows one authenticator.
+      if ((err as { code?: string }).code !== '23505') throw err;
+      await redirect(reply, '/account/two-step');
+      return;
+    }
+    await this.twoStepStore.dropSetup(s.id);
+    await this.notify(s.sub, '2-step verification was turned on', [
+      '2-step verification is now on for your account. Signing in will also ask for a code from your authenticator app.',
+      'Keep your recovery codes somewhere safe: they let you in if you lose your phone.',
+    ]);
+    await this.codesPage(reply, s, codes, true);
+  }
+
+  /** A new set of recovery codes; the old set stops working at once. */
+  @Post('two-step/codes')
+  async newRecoveryCodes(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/two-step', { fresh: true });
+    if (!s) return;
+    if (!this.mfa.enabled || !(await this.identities.hasTotp(s.sub))) {
+      await redirect(reply, '/account/two-step');
+      return;
+    }
+    const codes = newCodes();
+    await this.db.tx(async (db) => {
+      await this.identities.replaceRecoveryCodes(
+        db,
+        s.sub,
+        codes.map((c) => this.mfa.hashCode(c)),
+      );
+      await this.identities.event(
+        {
+          ...this.seen(req, s),
+          kind: 'credential_added',
+          outcome: 'success',
+          credentialKind: 'recovery_codes',
+          detail: { replaced: true },
+        },
+        db,
+      );
+    });
+    await this.notify(s.sub, 'New recovery codes were made', [
+      'A new set of recovery codes was made for your account. Your old recovery codes no longer work.',
+    ]);
+    await this.codesPage(reply, s, codes, false);
+  }
+
+  @Post('two-step/off')
+  async disableTwoStep(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/two-step', { fresh: true });
+    if (!s) return;
+    const off = await this.db.tx(async (db) => {
+      const was = await this.identities.disableTotp(db, s.sub);
+      if (was) {
+        await this.identities.event(
+          {
+            ...this.seen(req, s),
+            kind: 'mfa_disabled',
+            outcome: 'success',
+            credentialKind: 'totp',
+          },
+          db,
+        );
+      }
+      return was;
+    });
+    if (!off) {
+      await redirect(reply, '/account/two-step');
+      return;
+    }
+    await this.notify(s.sub, '2-step verification was turned off', [
+      '2-step verification was turned off for your account. Signing in now needs only your password or a code.',
+      'Your recovery codes no longer work.',
+    ]);
+    await redirect(reply, '/account/two-step?done=two_step_off');
+  }
+
+  private async setupPage(reply: FastifyReply, s: AccountSession, error?: string): Promise<void> {
+    let sealed = await this.twoStepStore.setup(s.id);
+    if (!sealed) {
+      sealed = this.mfa.seal(newSeed(), s.sub);
+      await this.twoStepStore.holdSetup(s.id, sealed);
+    }
+    const seed = this.mfa.open(sealed, s.sub);
+    const account = (await this.identities.primaryIdentifier(s.sub))?.value ?? s.sub;
+    const qr = await QRCode.toString(otpauthUri(seed, env.PROVIDER_NAME, account), {
+      type: 'svg',
+      errorCorrectionLevel: 'M',
+      margin: 0,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    await this.render(
+      reply,
+      s,
+      'account/two-step-setup',
+      'Turn on 2-step verification',
+      'security',
+      { qr, key: grouped(base32(seed)), account, error: error ?? null },
+      error ? 422 : 200,
+    );
+  }
+
+  /** Shown once, straight from the request that made them: they are never stored readable. */
+  private async codesPage(
+    reply: FastifyReply,
+    s: AccountSession,
+    codes: string[],
+    first: boolean,
+  ): Promise<void> {
+    const list = codes.map(shown);
+    const file =
+      `${env.PROVIDER_NAME} recovery codes\n` +
+      `Each code works once, if you can't use your authenticator app.\n\n` +
+      list.join('\n') +
+      '\n';
+    await this.render(reply, s, 'account/recovery-codes', 'Save your recovery codes', 'security', {
+      codes: list,
+      first,
+      done: first ? DONE.two_step_on : null,
+      download: `data:text/plain;charset=utf-8,${encodeURIComponent(file)}`,
+    });
   }
 
   // ---------------------------------------------------------------------------------------
