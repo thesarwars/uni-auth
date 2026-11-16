@@ -2,7 +2,6 @@
 <% var day = function (d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }; %>
 <div class="page-head">
   <h1 id="title">Security &amp; sign-in</h1>
-  <p>Settings to keep your account safe.</p>
 </div>
 <section class="panel" aria-labelledby="h-how">
   <div class="panel-head">
