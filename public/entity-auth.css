@@ -1407,3 +1407,50 @@ input.text.mono::placeholder {
     font-size: 15px;
   }
 }
+
+/* Passkeys (account-plan.md part 5). The passkey buttons start hidden and webauthn.js shows them
+   where the browser can use passkeys; [hidden] must beat .btn's display. */
+[data-passkey-start][hidden],
+.error[hidden] {
+  display: none;
+}
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 18px 24px;
+  border-top: 1px solid var(--border-hairline);
+}
+.panel-head + .panel-actions {
+  border-top: 0;
+  padding-top: 0;
+}
+.passkey-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.passkey-hero h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.passkey-hero .notice {
+  margin: 0;
+}
+.tile.big {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 600px) {
+  .row .do {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

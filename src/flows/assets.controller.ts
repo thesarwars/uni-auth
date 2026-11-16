@@ -60,8 +60,14 @@ function versioned(files: Map<string, Asset>, name: string): string {
 }
 
 const FILES = load();
-const PASSWORD_JS = readFileSync(join(PUBLIC, 'password.js'), 'utf8');
-const PASSWORD_JS_VERSION = versionOf(PASSWORD_JS);
+
+/** The screens' scripts: password fields (password.js) and passkeys (webauthn.js). */
+const SCRIPTS = new Map(
+  ['password.js', 'webauthn.js'].map((name) => {
+    const body = readFileSync(join(PUBLIC, name), 'utf8');
+    return [name, { body, version: versionOf(body) }] as const;
+  }),
+);
 
 /**
  * The URL a page links an asset by: /assets/<name>?v=<hash of its contents>. A deploy that
@@ -70,13 +76,15 @@ const PASSWORD_JS_VERSION = versionOf(PASSWORD_JS);
  * call it as asset('...') (src/common/eta.ts).
  */
 export function assetUrl(name: string): string {
-  if (name === 'password.js') return `/assets/password.js?v=${PASSWORD_JS_VERSION}`;
+  const script = SCRIPTS.get(name);
+  if (script) return `/assets/${name}?v=${script.version}`;
   return versioned(FILES, name);
 }
 
 /** Every asset's URL, for the templates' asset() (built once: the files never change at run time). */
 export function assetUrls(): Record<string, string> {
-  const urls: Record<string, string> = { 'password.js': assetUrl('password.js') };
+  const urls: Record<string, string> = {};
+  for (const name of SCRIPTS.keys()) urls[name] = assetUrl(name);
   for (const name of FILES.keys()) urls[name] = assetUrl(name);
   return urls;
 }
@@ -97,26 +105,25 @@ export function clientLogo(product: unknown): string | null {
 }
 
 /**
- * The one script the screens load (public/password.js) and the files above, from this origin,
+ * The screens' two scripts (public/password.js, public/webauthn.js) and the files above, from this origin,
  * which is all the Content-Security-Policy allows (script-src 'self'). A request names a key in
  * the map, never a path on disk.
  */
 @Controller('assets')
 export class AssetsController {
-  @Get('password.js')
-  password(@Query('v') v: unknown, @Res() reply: FastifyReply): FastifyReply {
-    return reply
-      .header('content-type', 'text/javascript; charset=utf-8')
-      .header('cache-control', cacheFor(v, PASSWORD_JS_VERSION))
-      .send(PASSWORD_JS);
-  }
-
   @Get(':name')
   top(
     @Param('name') name: string,
     @Query('v') v: unknown,
     @Res() reply: FastifyReply,
   ): FastifyReply {
+    const script = SCRIPTS.get(name);
+    if (script) {
+      return reply
+        .header('content-type', 'text/javascript; charset=utf-8')
+        .header('cache-control', cacheFor(v, script.version))
+        .send(script.body);
+    }
     return this.send(name, v, reply);
   }
 

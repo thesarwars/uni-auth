@@ -239,6 +239,7 @@ export function activityView(
         if (e.credentialKind === 'recovery_codes') {
           return { icon: 'key', title: 'New recovery codes made' };
         }
+        if (e.credentialKind === 'passkey') return { icon: 'key', title: 'Passkey added' };
         if (e.credentialKind && PROVIDER[e.credentialKind]) {
           return {
             icon: PROVIDER_ICON[e.credentialKind]!,
@@ -247,6 +248,7 @@ export function activityView(
         }
         return { icon: 'lock-20', title: 'Password set' };
       case 'credential_revoked':
+        if (e.credentialKind === 'passkey') return { icon: 'key', title: 'Passkey removed' };
         if (e.credentialKind && PROVIDER[e.credentialKind]) {
           return {
             icon: PROVIDER_ICON[e.credentialKind]!,

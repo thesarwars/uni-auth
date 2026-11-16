@@ -1,0 +1,24 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <a class="back" href="/account/passkeys"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Passkeys</a>
+  <h1 id="title">Add a passkey</h1>
+</div>
+<section class="panel pad" aria-labelledby="h-add">
+  <div class="passkey-hero">
+    <span class="tile big"><img src="<%= asset('icons/key.svg') %>" alt="" width="28" height="28"></span>
+    <div>
+      <h2 id="h-add">Use your fingerprint, face or screen lock</h2>
+      <p class="notice">Your device or password manager will ask to save a passkey for <%= it.who %>. Next time, choose it to sign in without a password.</p>
+    </div>
+  </div>
+  <form id="passkey" method="post" action="/account/passkeys/add" data-passkey="create" data-options="/account/passkeys/options">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="credential" value="">
+  </form>
+  <p id="passkey-error" class="error" role="alert"<% if (!it.error) { %> hidden<% } %>><%~ include('../_alert-icon') %><span><%= it.error || '' %></span></p>
+  <p class="fine" data-passkey-unsupported>This browser can’t make passkeys. Try a recent version of Chrome, Safari, Edge or Firefox.</p>
+  <div class="actions">
+    <a class="btn ghost" href="/account/passkeys">Cancel</a>
+    <button type="button" class="btn" data-passkey-start="passkey" hidden>Create a passkey</button>
+  </div>
+</section>

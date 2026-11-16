@@ -5,8 +5,11 @@ import { identifierHash, type Identifier } from './identifier';
 
 export type IdentityStatus = 'active' | 'suspended' | 'closed';
 export type CredentialKind =
-  'password' | 'oauth_google' | 'oauth_apple' | 'totp' | 'recovery_codes';
-/** The credentials that sign someone in on their own; totp and recovery codes are second steps. */
+  'password' | 'oauth_google' | 'oauth_apple' | 'totp' | 'recovery_codes' | 'passkey';
+/**
+ * The credentials the identifier screen offers once it knows who is signing in; totp and
+ * recovery codes are second steps, and a passkey says who it is by itself.
+ */
 export type FirstFactor = 'password' | 'oauth_google' | 'oauth_apple';
 
 /** An identifier that signs someone in, and what that identity can sign in with. */
@@ -29,6 +32,29 @@ export interface TwoStep {
   totp: { addedAt: Date; lastUsedAt: Date | null } | null;
   /** Unused recovery codes left, and when the set was made; null with no set. */
   codes: { left: number; madeAt: Date } | null;
+}
+
+/** One of an identity's live passkeys. */
+export interface LivePasskey {
+  id: string;
+  webauthnId: Buffer;
+  transports: string[];
+  nickname: string;
+  /** It syncs between the member's devices (a password manager), rather than one key. */
+  synced: boolean;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+}
+
+/** A passkey a sign-in names, with what checking it needs. */
+export interface StoredPasskey {
+  id: string;
+  identityId: string;
+  status: Exclude<IdentityStatus, 'closed'>;
+  publicKey: Buffer;
+  signCount: number;
+  transports: string[];
+  backupEligible: boolean;
 }
 
 export interface AuthEvent {
@@ -553,6 +579,145 @@ export class IdentityRepository {
       [identityId],
     );
     return (res.rowCount ?? 0) === 1;
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Passkeys (account-plan.md part 5)
+  // ---------------------------------------------------------------------------------------
+
+  async passkeys(identityId: string): Promise<LivePasskey[]> {
+    const rows = await this.db.rows<{
+      id: string;
+      webauthn_credential_id: Buffer;
+      transports: string[];
+      nickname: string;
+      backup_eligible: boolean;
+      created_at: Date;
+      last_used_at: Date | null;
+    }>(
+      `SELECT id, webauthn_credential_id, transports, nickname, backup_eligible, created_at,
+              last_used_at
+         FROM credential
+        WHERE identity_id = $1 AND kind = 'passkey' AND revoked_at IS NULL
+        ORDER BY created_at`,
+      [identityId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      webauthnId: r.webauthn_credential_id,
+      transports: r.transports,
+      nickname: r.nickname,
+      synced: r.backup_eligible,
+      createdAt: r.created_at,
+      lastUsedAt: r.last_used_at,
+    }));
+  }
+
+  /** The live passkey with this WebAuthn credential id, of an identity that isn't closed. */
+  async passkeyByWebauthnId(webauthnId: Buffer): Promise<StoredPasskey | null> {
+    const [row] = await this.db.rows<{
+      id: string;
+      identity_id: string;
+      status: Exclude<IdentityStatus, 'closed'>;
+      public_key: Buffer;
+      sign_count: string;
+      transports: string[];
+      backup_eligible: boolean;
+    }>(
+      `SELECT c.id, c.identity_id, i.status, c.public_key, c.sign_count, c.transports,
+              c.backup_eligible
+         FROM credential c JOIN identity i ON i.id = c.identity_id
+        WHERE c.webauthn_credential_id = $1 AND c.kind = 'passkey' AND c.revoked_at IS NULL
+          AND i.status <> 'closed'`,
+      [webauthnId],
+    );
+    if (!row) return null;
+    return {
+      id: row.id,
+      identityId: row.identity_id,
+      status: row.status,
+      publicKey: row.public_key,
+      signCount: Number(row.sign_count),
+      transports: row.transports,
+      backupEligible: row.backup_eligible,
+    };
+  }
+
+  /**
+   * Records a passkey's use: its new signature counter and backup state. False when the
+   * passkey was removed meanwhile, or the counter didn't move forward (a copy of the key; the
+   * schema refuses it too).
+   */
+  async usePasskey(id: string, signCount: number, backedUp: boolean): Promise<boolean> {
+    try {
+      const res = await this.db.asDb().query(
+        `UPDATE credential
+            SET sign_count = $2, backup_state = (backup_eligible AND $3), last_used_at = now()
+          WHERE id = $1 AND kind = 'passkey' AND revoked_at IS NULL
+            AND (sign_count < $2 OR (sign_count = 0 AND $2 = 0))`,
+        [id, signCount, backedUp],
+      );
+      return (res.rowCount ?? 0) === 1;
+    } catch (err) {
+      if ((err as { code?: string }).code === '23001') return false; // restrict_violation
+      throw err;
+    }
+  }
+
+  async addPasskey(
+    db: Db,
+    identityId: string,
+    p: {
+      webauthnId: Buffer;
+      publicKey: Buffer;
+      signCount: number;
+      transports: string[];
+      aaguid: string;
+      backupEligible: boolean;
+      backupState: boolean;
+      nickname: string;
+    },
+  ): Promise<string> {
+    const row = await one<{ id: string }>(
+      db,
+      `INSERT INTO credential
+         (identity_id, kind, webauthn_credential_id, public_key, sign_count, transports, aaguid,
+          backup_eligible, backup_state, nickname)
+       VALUES ($1, 'passkey', $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [
+        identityId,
+        p.webauthnId,
+        p.publicKey,
+        p.signCount,
+        p.transports,
+        p.aaguid,
+        p.backupEligible,
+        p.backupState,
+        p.nickname,
+      ],
+    );
+    return row!.id;
+  }
+
+  async renamePasskey(identityId: string, id: string, nickname: string): Promise<boolean> {
+    const res = await this.db.asDb().query(
+      `UPDATE credential SET nickname = $3
+        WHERE id = $2 AND identity_id = $1 AND kind = 'passkey' AND revoked_at IS NULL`,
+      [identityId, id, nickname],
+    );
+    return (res.rowCount ?? 0) === 1;
+  }
+
+  /** Removes one of the identity's passkeys; its name, or null when there was no such passkey. */
+  async removePasskey(db: Db, identityId: string, id: string): Promise<string | null> {
+    const row = await one<{ nickname: string }>(
+      db,
+      `UPDATE credential SET revoked_at = now(), revoke_reason = 'removed_by_member'
+        WHERE id = $2 AND identity_id = $1 AND kind = 'passkey' AND revoked_at IS NULL
+        RETURNING nickname`,
+      [identityId, id],
+    );
+    return row?.nickname ?? null;
   }
 
   async markUsed(db: Db, credentialId: string): Promise<void> {

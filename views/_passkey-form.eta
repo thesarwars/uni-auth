@@ -1,0 +1,12 @@
+<%/* A passkey ceremony's form (public/webauthn.js): sent with the browser's answer once the
+     member uses a passkey. it.passkeyAction and it.passkeyOptions say where; it.passkeyMode,
+     when set, is the 2-step screen's mode field. */%>
+  <form id="passkey" method="post" action="<%= it.passkeyAction %>" data-passkey="get"<% if (it.passkeyAutofill) { %> data-autofill<% } %> data-options="<%= it.passkeyOptions %>">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+<% if (it.passkeyMode) { %>
+    <input type="hidden" name="mode" value="<%= it.passkeyMode %>">
+<% } %>
+    <input type="hidden" name="credential" value="">
+  </form>
+  <p id="passkey-error" class="error" role="alert" hidden><%~ include('./_alert-icon') %><span></span></p>

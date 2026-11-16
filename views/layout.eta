@@ -45,5 +45,6 @@
   </footer>
 </div>
   <script src="<%= asset('password.js') %>" defer></script>
+  <script src="<%= asset('webauthn.js') %>" defer></script>
 </body>
 </html>

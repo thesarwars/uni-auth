@@ -20,6 +20,11 @@
       <span class="text"><span class="t"><%= name %></span><span class="s">You can sign in with your <%= name %> account</span></span>
     </li>
 <% }) %>
+    <li><a class="row" href="/account/passkeys">
+      <span class="tile"><img src="<%= asset('icons/key.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Passkeys<% if (it.passkeyCount) { %><span class="tag inverse"><%= it.passkeyCount %></span><% } %></span><span class="s"><%= it.passkeyCount ? 'Sign in with your fingerprint, face or screen lock' : 'Sign in without a password' %></span></span>
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
 <% if (it.twoStep.totp || it.twoStepAvailable) { %>
     <li><a class="row" href="/account/two-step">
       <span class="tile"><img src="<%= asset('icons/shield-20.svg') %>" alt="" width="20" height="20"></span>
