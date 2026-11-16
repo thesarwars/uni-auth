@@ -173,7 +173,7 @@ services:
   # every three days; the login application re-reads it when it changes. Runs only with the
   # geoip profile (COMPOSE_PROFILES=geoip in .env), which needs a free MaxMind account.
   geoipupdate:
-    image: ghcr.io/maxmind/geoipupdate:v7.1.1
+    image: maxmindinc/geoipupdate:v7.1.1
     profiles: [geoip]
     restart: unless-stopped
     environment:
