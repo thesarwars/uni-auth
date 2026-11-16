@@ -2,7 +2,6 @@
 <div class="page-head">
   <a class="back" href="/account/personal"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Personal info</a>
   <h1 id="title">Name and language</h1>
-  <p>How you appear in apps that use <%= it.providerName %>, and the language its screens and emails use.</p>
 </div>
 <section class="panel pad" aria-label="Name and language">
   <form method="post" action="/account/personal">
