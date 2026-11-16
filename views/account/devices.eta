@@ -1,0 +1,39 @@
+<% layout('./layout') %>
+<% var others = it.devices.filter(function (d) { return !d.current; }); %>
+<div class="page-head">
+  <a class="back" href="/account/security"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Security &amp; sign-in</a>
+  <h1 id="title">Your devices</h1>
+  <p>Devices signed in to your <%= it.providerName %> account. Signing out a device signs it out of every app.</p>
+</div>
+<section class="panel" aria-labelledby="h-now">
+  <div class="panel-head"><h2 id="h-now">Signed in now</h2></div>
+  <ul class="rows">
+<% it.devices.forEach(function (d) { %>
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/' + d.icon + '.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= d.name %><% if (d.current) { %><span class="tag inverse">This device</span><% } %></span><span class="s"><%= d.detail %></span></span>
+<% if (!d.current) { %>
+      <form class="do" method="post" action="/account/devices/sign-out">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <input type="hidden" name="id" value="<%= d.id %>">
+        <button type="submit" class="btn stroke small">Sign out<span class="sr"> <%= d.name %></span></button>
+      </form>
+<% } %>
+    </li>
+<% }) %>
+  </ul>
+</section>
+<% if (others.length) { %>
+<section class="panel" aria-label="Sign out of all other devices">
+  <ul class="rows">
+    <li class="row first">
+      <span class="tile"><img src="<%= asset('icons/logout.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Sign out of all other devices</span><span class="s">Use this if you lost a device or don’t recognise one.</span></span>
+      <form class="do" method="post" action="/account/devices/sign-out-others">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <button type="submit" class="btn stroke small">Sign out<span class="sr"> of all other devices</span></button>
+      </form>
+    </li>
+  </ul>
+</section>
+<% } %>

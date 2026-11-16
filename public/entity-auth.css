@@ -1121,8 +1121,13 @@ a.row:hover {
   display: flex;
   gap: 8px;
 }
-.row .do form {
+.row .do form,
+.row form.do {
   margin: 0;
+}
+/* A card with no header: its only row needs no rule above it. */
+.row.first {
+  border-top: 0;
 }
 .panel-foot {
   display: flex;
