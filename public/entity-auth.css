@@ -961,9 +961,6 @@ input.text[aria-invalid='true']:focus {
   text-decoration: none;
   color: var(--text-primary);
 }
-.app:hover {
-  background: var(--bg-surface);
-}
 .app:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--border-focus);
@@ -980,8 +977,14 @@ input.text[aria-invalid='true']:focus {
   font-size: 20px;
   font-weight: 600;
 }
-.app:hover .app-icon {
-  background: var(--bg-page);
+/* Only with a pointer that hovers: on a touch screen a tap leaves :hover stuck. */
+@media (hover: hover) {
+  .app:hover {
+    background: var(--bg-surface);
+  }
+  .app:hover .app-icon {
+    background: var(--bg-page);
+  }
 }
 .app-icon img {
   border-radius: 8px;
@@ -1194,6 +1197,30 @@ a.panel-foot:hover {
   .row .k {
     width: 96px;
   }
+  /* The account home's header, tighter: less air above the avatar and around the apps. */
+  .acct-content {
+    gap: 16px;
+  }
+  .profile {
+    gap: 8px;
+    padding: 8px 0 0;
+  }
+  .profile .avatar-i {
+    width: 64px;
+    height: 64px;
+    font-size: 24px;
+  }
+  .profile h1 {
+    font-size: 24px;
+    line-height: 30px;
+  }
+  .apps {
+    margin-top: 4px;
+  }
+  .app {
+    padding: 6px;
+    gap: 6px;
+  }
 }
 @media (max-width: 560px) {
   .acct-brand .area {
@@ -1215,6 +1242,26 @@ a.panel-foot:hover {
   .row:has(.k) {
     flex-wrap: wrap;
     gap: 4px 16px;
+  }
+  .profile .avatar-i {
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+  }
+  .profile h1 {
+    font-size: 22px;
+    line-height: 28px;
+  }
+  .app {
+    width: 104px;
+  }
+  .app-icon {
+    width: 48px;
+    height: 48px;
+  }
+  .app-icon img {
+    width: 28px;
+    height: 28px;
   }
 }
 .panel.pad .panel-head {
