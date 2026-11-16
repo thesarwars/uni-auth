@@ -17,7 +17,8 @@ export interface Hop {
   headers: Headers;
 }
 
-export function browser() {
+/** `userAgent` stands in for a real browser's, for the tests that tell devices apart. */
+export function browser(userAgent?: string) {
   const jar = new Map<string, string>();
 
   async function request(url: string, init: RequestInit = {}): Promise<Hop> {
@@ -26,6 +27,7 @@ export function browser() {
       redirect: 'manual',
       headers: {
         ...(init.headers ?? {}),
+        ...(userAgent ? { 'user-agent': userAgent } : {}),
         cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
       },
     });
