@@ -135,6 +135,8 @@ services:
       HYDRA_HOOK_SECRET: ${HYDRA_HOOK_SECRET}
       UNI_AUTH_SERVICE_SECRET: ${UNI_AUTH_SERVICE_SECRET}
       ENTITY_AUTH_ACCOUNT_SECRET: ${ENTITY_AUTH_ACCOUNT_SECRET}
+      # 2-step verification's key; unset, it can't be turned on. Never change it once used.
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
       IDENTITY_NOTICE_URL: ${GSN_API_URL}/v1/uni-auth/identity-notices
       PROVIDER_NAME: ${PROVIDER_NAME:-Entity}
       HELP_URL: ${HELP_URL:-}

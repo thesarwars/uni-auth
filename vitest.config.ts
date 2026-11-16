@@ -17,6 +17,8 @@ const defaults: Record<string, string> = {
   LOG_LEVEL: 'error',
   HYDRA_ADMIN_URL: 'http://127.0.0.1:4445',
   COOKIE_SECRET: 'test-only-cookie-secret-0000000000000000',
+  // 2-step verification's key: a fixed test-only value, so sealed seeds open across runs.
+  MFA_ENCRYPTION_KEY: '7e57'.repeat(16),
   PROVIDER_NAME: 'entity-auth',
   HYDRA_PUBLIC_URL: 'http://localhost:4444',
   REDIS_URL: 'redis://127.0.0.1:6380',

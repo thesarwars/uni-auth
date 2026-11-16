@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 rand() { openssl rand -hex "$1"; }
 for name in HYDRA_DB_PASSWORD IDENTITY_DB_PASSWORD UNI_AUTH_DB_PASSWORD HYDRA_SECRETS_SYSTEM \
   HYDRA_SECRETS_COOKIE HYDRA_HOOK_SECRET COOKIE_SECRET UNI_AUTH_SERVICE_SECRET \
-  ENTITY_AUTH_ACCOUNT_SECRET; do
+  ENTITY_AUTH_ACCOUNT_SECRET MFA_ENCRYPTION_KEY; do
   if grep -qE "^$name=.+" .env; then
     echo "$name: kept"
   elif grep -qE "^$name=$" .env; then
@@ -20,6 +20,8 @@ for name in HYDRA_DB_PASSWORD IDENTITY_DB_PASSWORD UNI_AUTH_DB_PASSWORD HYDRA_SE
     sed -i.tmp "s|^$name=$|$name=$value|" .env && rm -f .env.tmp
     echo "$name: generated"
   else
+    # Never glue onto a last line that has no newline.
+    [[ -z "$(tail -c 1 .env)" ]] || echo >>.env
     echo "$name=$(rand 32)" >>.env
     echo "$name: generated"
   fi

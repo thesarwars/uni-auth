@@ -4,6 +4,9 @@ import { AccountController } from './account/account.controller';
 import { AccountOidc } from './account/account-oidc';
 import { AccountSessions } from './account/account-sessions';
 import { GeoIp } from './geo/geoip.service';
+import { MfaKeys } from './two-step/mfa-keys';
+import { TwoStepController } from './two-step/two-step.controller';
+import { TwoStepStore } from './two-step/two-step.store';
 import { AccountApps } from './account/account-apps';
 import { CsrfGuard } from './common/csrf.guard';
 import { PageErrorFilter } from './common/page-error.filter';
@@ -41,6 +44,7 @@ import { Upstream } from './upstream/upstream.service';
     HooksController,
     SystemController,
     AccountController,
+    TwoStepController,
   ],
   providers: [
     HydraAdmin,
@@ -63,6 +67,8 @@ import { Upstream } from './upstream/upstream.service';
     AccountSessions,
     AccountApps,
     GeoIp,
+    MfaKeys,
+    TwoStepStore,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

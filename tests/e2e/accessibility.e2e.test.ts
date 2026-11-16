@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Outbox } from '../../src/delivery/outbox';
+import { codeAt, fromBase32, stepAt } from '../../src/two-step/totp';
 import { startApp } from '../support/app';
 import { APP, HYDRA, authorizeUrl, browser, formFields, pkce, type Hop } from '../support/browser';
 import { closeMembers, createMember, type Member } from '../support/members';
@@ -165,6 +166,36 @@ beforeAll(async () => {
     await a.post(`${APP}/account/password`, { _csrf: token(), password: 'weak', confirm: 'x' }),
   );
   keep('account signed out', await browser().get(`${APP}/account/signed-out`));
+
+  // 2-step verification (account-plan.md part 4): the account pages, then the sign-in step.
+  keep('account 2-step, off', (acct = (await a.follow(`${APP}/account/two-step`)).hop));
+  keep('account 2-step setup', (acct = (await a.follow(`${APP}/account/two-step/setup`)).hop));
+  const seed = fromBase32(/aria-label="Setup key">([A-Z2-7 ]+)</.exec(acct.html)![1]!);
+  keep(
+    'account 2-step setup, wrong',
+    await a.post(`${APP}/account/two-step/setup`, { _csrf: token(), code: '000000' }),
+  );
+  keep(
+    'account recovery codes',
+    await a.post(`${APP}/account/two-step/setup`, {
+      _csrf: token(),
+      code: codeAt(seed, stepAt(Date.now())),
+    }),
+  );
+  keep('account 2-step, on', await a.get(`${APP}/account/two-step`));
+  ({ b, page } = await start());
+  page = await post(b, page, { action: 'identify', identifier: holder.email });
+  page = await post(b, page, { action: 'password', password: holder.password });
+  page = keep('two-step', (await b.follow(page.location!)).hop);
+  const step = (mode: string) =>
+    b.post(`${APP}/login/two-step`, {
+      _csrf: /name="_csrf" value="([^"]+)"/.exec(page.html)![1]!,
+      login_challenge: /name="login_challenge" value="([^"]+)"/.exec(page.html)![1]!,
+      mode,
+      code: '000000',
+    });
+  keep('two-step, wrong', await step('app'));
+  keep('two-step, recovery code', await step('recovery'));
 }, 120_000);
 
 afterAll(async () => {
@@ -176,6 +207,14 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
   const names = [
     'identifier',
     'identifier, refused',
+    'two-step',
+    'two-step, wrong',
+    'two-step, recovery code',
+    'account 2-step, off',
+    'account 2-step setup',
+    'account 2-step setup, wrong',
+    'account recovery codes',
+    'account 2-step, on',
     'password',
     'password, wrong',
     'reset',

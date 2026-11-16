@@ -10,6 +10,10 @@ import { countryName, GeoIp } from '../geo/geoip.service';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { IdentityRepository, type CredentialKind } from '../identity/identity.repository';
 import { RedisService } from '../redis/redis.service';
+import { TwoStepStore } from '../two-step/two-step.store';
+
+/** Binds a sign-in waiting for its second step to the browser that passed the first. */
+export const TWO_STEP_COOKIE = 'ea_two_step';
 
 export interface Seen {
   ip: string;
@@ -20,7 +24,11 @@ export interface Authenticated {
   identityId: string;
   credentialId: string | null;
   credentialKind: CredentialKind | null;
-  /** RFC 8176 method names, plus `fed` for an upstream provider. */
+  /**
+   * RFC 8176 method names, plus `fed` for an upstream provider. `mfa` among them means the
+   * second step has been passed (TwoStepController); without it, an identity with 2-step
+   * verification is sent to that step first.
+   */
   amr: string[];
   detail?: Record<string, unknown>;
 }
@@ -39,6 +47,7 @@ export class SignIn {
     private readonly redis: RedisService,
     private readonly geo: GeoIp,
     private readonly email: EmailSender,
+    private readonly twoStep: TwoStepStore,
   ) {}
 
   /**
@@ -77,6 +86,22 @@ export class SignIn {
     const sid = request.session_id;
     if (!sid) throw new Error('Hydra sent a login request with no session id');
 
+    // 2-step verification (account-plan.md section 4): every way in - password, code, reset,
+    // Google, Apple - passes here, so none of them alone signs a 2-step account in.
+    const twoStepDone = a.amr.includes('mfa');
+    if (!twoStepDone && (await this.identities.hasTotp(a.identityId))) {
+      const token = await this.twoStep.holdSignIn(challenge, { a, seen });
+      reply.setCookie(TWO_STEP_COOKIE, token, {
+        signed: true,
+        httpOnly: true,
+        path: '/login',
+        maxAge: 600,
+        sameSite: 'lax',
+        secure: env.NODE_ENV === 'production',
+      });
+      return `/login/two-step?login_challenge=${encodeURIComponent(challenge)}`;
+    }
+
     // The device and place, recorded with the session (account-plan.md section 5).
     const device = describeDevice(seen.userAgent);
     const label = device.name === 'Unknown device' ? null : device.name;
@@ -95,6 +120,7 @@ export class SignIn {
         deviceLabel: label,
         geoCity: at.city,
         geoCountry: at.country,
+        aal: twoStepDone ? 2 : 1,
       });
       if (!sessionId) return null;
       if (a.credentialId) await this.identities.markUsed(db, a.credentialId);
@@ -131,9 +157,9 @@ export class SignIn {
       subject: a.identityId,
       remember: true,
       remember_for: env.REMEMBER_SECONDS,
-      // How the member authenticated. The API reads these for step-up (section 9); one factor
-      // is assurance level 1.
-      acr: 'aal1',
+      // How the member authenticated. The API reads these for step-up (section 9): one factor
+      // is assurance level 1, a second step makes it 2.
+      acr: twoStepDone ? 'aal2' : 'aal1',
       amr: a.amr,
       context: { auth_time: Math.floor(Date.now() / 1000) },
     });

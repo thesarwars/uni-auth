@@ -4,19 +4,31 @@ import { Database, one, type Db } from '../db/database.service';
 import { identifierHash, type Identifier } from './identifier';
 
 export type IdentityStatus = 'active' | 'suspended' | 'closed';
-export type CredentialKind = 'password' | 'oauth_google' | 'oauth_apple';
+export type CredentialKind =
+  'password' | 'oauth_google' | 'oauth_apple' | 'totp' | 'recovery_codes';
+/** The credentials that sign someone in on their own; totp and recovery codes are second steps. */
+export type FirstFactor = 'password' | 'oauth_google' | 'oauth_apple';
 
 /** An identifier that signs someone in, and what that identity can sign in with. */
 export interface Resolved {
   identityId: string;
   status: Exclude<IdentityStatus, 'closed'>;
-  credentials: CredentialKind[];
+  credentials: FirstFactor[];
 }
 
 export interface SessionState {
   identityId: string;
   identityStatus: IdentityStatus;
   revoked: boolean;
+  /** The assurance level the session was opened at: 2 after a second factor. */
+  aal: 1 | 2;
+}
+
+/** The member's 2-step verification, for the account centre. */
+export interface TwoStep {
+  totp: { addedAt: Date; lastUsedAt: Date | null } | null;
+  /** Unused recovery codes left, and when the set was made; null with no set. */
+  codes: { left: number; madeAt: Date } | null;
 }
 
 export interface AuthEvent {
@@ -32,7 +44,11 @@ export interface AuthEvent {
     | 'identifier_removed'
     | 'password_changed'
     | 'profile_updated'
-    | 'identity_created';
+    | 'identity_created'
+    | 'credential_revoked'
+    | 'mfa_enabled'
+    | 'mfa_disabled'
+    | 'recovery_code_used';
   outcome: 'success' | 'failure';
   identityId?: string | null;
   identifier?: Identifier | null;
@@ -60,13 +76,14 @@ export class IdentityRepository {
     const [row] = await this.db.rows<{
       identity_id: string;
       status: Exclude<IdentityStatus, 'closed'>;
-      credentials: CredentialKind[] | null;
+      credentials: FirstFactor[] | null;
     }>(
       `SELECT i.id AS identity_id, i.status,
               array_agg(DISTINCT c.kind::text) FILTER (WHERE c.id IS NOT NULL) AS credentials
          FROM identity_identifier ii
          JOIN identity i ON i.id = ii.identity_id
          LEFT JOIN credential c ON c.identity_id = i.id AND c.revoked_at IS NULL
+                                AND c.kind IN ('password', 'oauth_google', 'oauth_apple')
         WHERE ii.kind = $1 AND ii.value = $2
           AND ii.verified_at IS NOT NULL AND ii.revoked_at IS NULL AND i.status <> 'closed'
         GROUP BY i.id, i.status`,
@@ -153,14 +170,16 @@ export class IdentityRepository {
       deviceLabel?: string | null;
       geoCity?: string | null;
       geoCountry?: string | null;
+      aal?: 1 | 2;
     },
   ): Promise<string | null> {
     const row = await one<{ id: string }>(
       db,
       `INSERT INTO auth_session (identity_id, credential_id, sid, client_id, ip_address, user_agent, expires_at,
-                                 device_label, geo_city, geo_country)
-       VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7), $8, $9, $10)
-       ON CONFLICT (sid) DO UPDATE SET last_seen_at = now()
+                                 device_label, geo_city, geo_country, aal)
+       VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7), $8, $9, $10, $11)
+       ON CONFLICT (sid) DO UPDATE SET last_seen_at = now(),
+                                       aal = GREATEST(auth_session.aal, EXCLUDED.aal)
          WHERE auth_session.identity_id = EXCLUDED.identity_id
            AND auth_session.revoked_at IS NULL AND auth_session.expires_at > now()
        RETURNING id`,
@@ -175,6 +194,7 @@ export class IdentityRepository {
         s.deviceLabel ?? null,
         s.geoCity ?? null,
         s.geoCountry ?? null,
+        s.aal ?? 1,
       ],
     );
     return row?.id ?? null;
@@ -216,9 +236,10 @@ export class IdentityRepository {
         identity_id: string;
         status: IdentityStatus;
         revoked: boolean;
+        aal: 1 | 2;
       }>(
         db,
-        `SELECT s.id, s.identity_id, i.status,
+        `SELECT s.id, s.identity_id, i.status, s.aal,
                 (s.revoked_at IS NOT NULL OR s.expires_at <= now()) AS revoked
            FROM auth_session s JOIN identity i ON i.id = s.identity_id
           WHERE s.sid = $1 FOR UPDATE OF s`,
@@ -228,7 +249,12 @@ export class IdentityRepository {
       if (!row.revoked && row.status === 'active') {
         await db.query('UPDATE auth_session SET last_seen_at = now() WHERE id = $1', [row.id]);
       }
-      return { identityId: row.identity_id, identityStatus: row.status, revoked: row.revoked };
+      return {
+        identityId: row.identity_id,
+        identityStatus: row.status,
+        revoked: row.revoked,
+        aal: row.aal,
+      };
     });
   }
 
@@ -384,6 +410,151 @@ export class IdentityRepository {
     }));
   }
 
+  // ---------------------------------------------------------------------------------------
+  // 2-step verification (account-plan.md part 4)
+  // ---------------------------------------------------------------------------------------
+
+  /** Whether sign-in asks this identity for a second step. */
+  async hasTotp(identityId: string): Promise<boolean> {
+    const [row] = await this.db.rows<{ on: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM credential
+                       WHERE identity_id = $1 AND kind = 'totp' AND revoked_at IS NULL) AS on`,
+      [identityId],
+    );
+    return row?.on ?? false;
+  }
+
+  async twoStep(identityId: string): Promise<TwoStep> {
+    const rows = await this.db.rows<{
+      kind: 'totp' | 'recovery_codes';
+      created_at: Date;
+      last_used_at: Date | null;
+      left: number;
+    }>(
+      `SELECT c.kind, c.created_at, c.last_used_at,
+              (SELECT count(*)::int FROM recovery_code r
+                WHERE r.credential_id = c.id AND r.used_at IS NULL) AS left
+         FROM credential c
+        WHERE c.identity_id = $1 AND c.kind IN ('totp', 'recovery_codes') AND c.revoked_at IS NULL`,
+      [identityId],
+    );
+    const totp = rows.find((r) => r.kind === 'totp');
+    const codes = rows.find((r) => r.kind === 'recovery_codes');
+    return {
+      totp: totp ? { addedAt: totp.created_at, lastUsedAt: totp.last_used_at } : null,
+      codes: codes ? { left: codes.left, madeAt: codes.created_at } : null,
+    };
+  }
+
+  /** The live authenticator's sealed seed and the last time step it accepted. */
+  async liveTotp(
+    identityId: string,
+  ): Promise<{ id: string; sealed: Buffer; lastStep: number | null } | null> {
+    const [row] = await this.db.rows<{
+      id: string;
+      secret_ciphertext: Buffer;
+      totp_last_step: string | null;
+    }>(
+      `SELECT id, secret_ciphertext, totp_last_step FROM credential
+        WHERE identity_id = $1 AND kind = 'totp' AND revoked_at IS NULL`,
+      [identityId],
+    );
+    if (!row) return null;
+    return {
+      id: row.id,
+      sealed: row.secret_ciphertext,
+      lastStep: row.totp_last_step === null ? null : Number(row.totp_last_step),
+    };
+  }
+
+  /**
+   * Spends an authenticator code's time step. False when that step or a later one was spent
+   * already - the same code, replayed - or the authenticator has been turned off meanwhile.
+   */
+  async spendTotpStep(credentialId: string, step: number): Promise<boolean> {
+    const res = await this.db.asDb().query(
+      `UPDATE credential SET totp_last_step = $2, last_used_at = now()
+          WHERE id = $1 AND kind = 'totp' AND revoked_at IS NULL
+            AND (totp_last_step IS NULL OR totp_last_step < $2)`,
+      [credentialId, step],
+    );
+    return (res.rowCount ?? 0) === 1;
+  }
+
+  /** Spends one recovery code. Null when no unused code of the live set has this hash. */
+  async spendRecoveryCode(identityId: string, hash: Buffer): Promise<{ left: number } | null> {
+    return this.db.tx(async (db) => {
+      const spent = await one<{ credential_id: string }>(
+        db,
+        `UPDATE recovery_code r SET used_at = now()
+           FROM credential c
+          WHERE c.id = r.credential_id AND c.identity_id = $1 AND c.kind = 'recovery_codes'
+            AND c.revoked_at IS NULL AND r.code_hash = $2 AND r.used_at IS NULL
+          RETURNING r.credential_id`,
+        [identityId, hash],
+      );
+      if (!spent) return null;
+      await db.query('UPDATE credential SET last_used_at = now() WHERE id = $1', [
+        spent.credential_id,
+      ]);
+      const left = await one<{ n: number }>(
+        db,
+        'SELECT count(*)::int AS n FROM recovery_code WHERE credential_id = $1 AND used_at IS NULL',
+        [spent.credential_id],
+      );
+      return { left: left!.n };
+    });
+  }
+
+  /**
+   * Turns 2-step verification on: the authenticator, with the step its confirming code was
+   * spent at, and a first set of recovery codes. Fails on the schema's one-live-totp rule when
+   * it is on already.
+   */
+  async enableTotp(
+    db: Db,
+    a: { identityId: string; sealed: Buffer; step: number; codeHashes: Buffer[] },
+  ): Promise<void> {
+    await db.query(
+      `INSERT INTO credential (identity_id, kind, secret_ciphertext, totp_last_step, last_used_at)
+       VALUES ($1, 'totp', $2, $3, now())`,
+      [a.identityId, a.sealed, a.step],
+    );
+    await this.insertRecoveryCodes(db, a.identityId, a.codeHashes);
+  }
+
+  /** A new set of recovery codes; the old set stops working. */
+  async replaceRecoveryCodes(db: Db, identityId: string, codeHashes: Buffer[]): Promise<void> {
+    await db.query(
+      `UPDATE credential SET revoked_at = now(), revoke_reason = 'replaced'
+        WHERE identity_id = $1 AND kind = 'recovery_codes' AND revoked_at IS NULL`,
+      [identityId],
+    );
+    await this.insertRecoveryCodes(db, identityId, codeHashes);
+  }
+
+  private async insertRecoveryCodes(db: Db, identityId: string, codeHashes: Buffer[]) {
+    const set = await one<{ id: string }>(
+      db,
+      `INSERT INTO credential (identity_id, kind) VALUES ($1, 'recovery_codes') RETURNING id`,
+      [identityId],
+    );
+    await db.query(
+      `INSERT INTO recovery_code (credential_id, code_hash) SELECT $1, unnest($2::bytea[])`,
+      [set!.id, codeHashes],
+    );
+  }
+
+  /** Turns 2-step verification off; the schema takes the recovery codes with it. */
+  async disableTotp(db: Db, identityId: string): Promise<boolean> {
+    const res = await db.query(
+      `UPDATE credential SET revoked_at = now(), revoke_reason = 'removed_by_member'
+        WHERE identity_id = $1 AND kind = 'totp' AND revoked_at IS NULL`,
+      [identityId],
+    );
+    return (res.rowCount ?? 0) === 1;
+  }
+
   async markUsed(db: Db, credentialId: string): Promise<void> {
     await db.query('UPDATE credential SET last_used_at = now() WHERE id = $1', [credentialId]);
   }
@@ -515,7 +686,8 @@ export class IdentityRepository {
               (SELECT c.created_at FROM credential c
                 WHERE c.identity_id = i.id AND c.kind = 'password' AND c.revoked_at IS NULL) AS password_set_at,
               (SELECT array_agg(DISTINCT c.kind::text) FROM credential c
-                WHERE c.identity_id = i.id AND c.kind <> 'password' AND c.revoked_at IS NULL) AS upstreams
+                WHERE c.identity_id = i.id AND c.kind IN ('oauth_google', 'oauth_apple')
+                  AND c.revoked_at IS NULL) AS upstreams
          FROM identity i WHERE i.id = $1`,
       [identityId],
     );

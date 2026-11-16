@@ -1,0 +1,58 @@
+<% layout('./layout') %>
+<% var day = function (d) { return d.toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', year: 'numeric' }); }; %>
+<% var on = !!it.twoStep.totp; %>
+<% var codes = it.twoStep.codes; %>
+<div class="page-head">
+  <a class="back" href="/account/security"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Security &amp; sign-in</a>
+  <h1 id="title">2-step verification</h1>
+</div>
+<% if (!on) { %>
+<section class="panel" aria-labelledby="h-add">
+  <div class="panel-head">
+    <h2 id="h-add">Add a second step when you sign in</h2>
+    <p>After your password or a code, you’ll also enter a code from an app on your phone. Someone who learns your password still can’t get in.</p>
+  </div>
+  <ul class="rows">
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/shield-20.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Authenticator app</span><span class="s">Google Authenticator, Microsoft Authenticator, 1Password, or any app that makes 6-digit codes</span></span>
+<% if (it.available) { %>
+      <span class="do"><a class="btn small" href="/account/two-step/setup">Turn on</a></span>
+<% } %>
+    </li>
+  </ul>
+</section>
+<% if (!it.available) { %>
+<p class="fine">2-step verification isn’t available here yet.</p>
+<% } %>
+<% } else { %>
+<section class="panel" aria-labelledby="h-how">
+  <div class="panel-head"><h2 id="h-how">How you verify</h2></div>
+  <ul class="rows">
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/shield-20.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Authenticator app<span class="tag inverse">On</span></span><span class="s">Added <%= day(it.twoStep.totp.addedAt) %><% if (it.twoStep.totp.lastUsedAt) { %> · Last used <%= day(it.twoStep.totp.lastUsedAt) %><% } %></span></span>
+    </li>
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/key.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Recovery codes<% if (!codes || codes.left <= 2) { %><span class="tag bad"><%= !codes || codes.left === 0 ? 'None left' : 'Running low' %></span><% } %></span><span class="s"><%= codes ? codes.left + ' of 10 left. Each works once if you can’t use your app.' : 'Make a set to use if you can’t use your app.' %></span></span>
+      <form class="do" method="post" action="/account/two-step/codes">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <button type="submit" class="btn stroke small">Get new codes</button>
+      </form>
+    </li>
+  </ul>
+</section>
+<section class="panel" aria-label="Turn off 2-step verification">
+  <ul class="rows">
+    <li class="row first">
+      <span class="tile"><img src="<%= asset('icons/alert-circle.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Turn off 2-step verification</span><span class="s">Signing in will only ask for your password or a code. Your recovery codes stop working.</span></span>
+      <form class="do" method="post" action="/account/two-step/off">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <button type="submit" class="btn stroke small danger-text">Turn off</button>
+      </form>
+    </li>
+  </ul>
+</section>
+<% } %>

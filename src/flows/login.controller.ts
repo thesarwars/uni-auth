@@ -30,7 +30,7 @@ import { assetUrl, clientLogo } from './assets.controller';
 import { UPSTREAM_COOKIE, type UpstreamError } from './upstream.controller';
 import { SignIn, type Authenticated, type Seen } from './sign-in.service';
 
-const Challenge = z.string().min(1).max(4096);
+export const Challenge = z.string().min(1).max(4096);
 const Typed = z.string().max(400);
 const Purpose = z.enum(['sign_in', 'recovery', 'signup']);
 const LoginForm = z.discriminatedUnion('action', [
@@ -294,7 +294,15 @@ export class LoginController {
       state.identityStatus === 'active' &&
       state.identityId === request.subject
     ) {
-      await redirect(reply, await this.hydra.acceptLogin(challenge, { subject: request.subject }));
+      // The assurance the session was opened at carries over: a sign-in that passed 2-step
+      // verification is still aal2 for the next app.
+      await redirect(
+        reply,
+        await this.hydra.acceptLogin(challenge, {
+          subject: request.subject,
+          acr: state.aal === 2 ? 'aal2' : 'aal1',
+        }),
+      );
       return;
     }
 
@@ -969,7 +977,7 @@ export function confirmSubject(request: LoginRequest): string | null {
 }
 
 /** What every sign-in screen carries: the challenge, a CSRF token, and who is asking. */
-function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
+export function page(reply: FastifyReply, challenge: string, request: LoginRequest) {
   return {
     confirm: confirmSubject(request) !== null,
     challenge,
@@ -1000,7 +1008,7 @@ function webUrl(raw: string | undefined): string | null {
   }
 }
 
-const minutesUntil = (t: Date): number =>
+export const minutesUntil = (t: Date): number =>
   Math.max(1, Math.round((t.getTime() - Date.now()) / 60_000));
 
 /** The code screen's page title; its heading is "Check your email" (or WhatsApp). */
