@@ -21,12 +21,16 @@ import { SessionEnder } from '../sessions/session-ender';
 import { ACCOUNT_CLIENT_ID, AccountOidc, AccountSignInFailed } from './account-oidc';
 import { AccountApps } from './account-apps';
 import { AccountSessions, type AccountSession } from './account-sessions';
+import { activitiesView, describeDevice, devicesView } from './device';
 
 const SESSION_COOKIE = 'ea_account';
 const STATE_COOKIE = 'ea_account_state';
 
 /** A sensitive change needs a sign-in this recent (account-plan.md AC-D2). */
 export const FRESH_SECONDS = 10 * 60;
+
+/** How far back Security activity looks (account-plan.md; retention is OQ-AC-5). */
+const ACTIVITY_DAYS = 90;
 
 /** The languages the account centre offers; identity.locale takes any BCP 47 tag of this shape. */
 export const LOCALES: { tag: string; label: string }[] = [
@@ -47,6 +51,8 @@ const DONE: Record<string, string> = {
   removed: 'Removed.',
   password_changed: 'Password changed. Your other devices have been signed out.',
   password_set: 'Password set. You can now sign in with it.',
+  device_signed_out: 'That device has been signed out.',
+  others_signed_out: 'Your other devices have been signed out.',
 };
 
 const ReturnTo = z
@@ -247,11 +253,107 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/security');
     if (!s) return;
-    const { profile, identifiers } = await this.load(s);
+    const [{ profile, identifiers }, sessions, events] = await Promise.all([
+      this.load(s),
+      this.identities.liveSessions(s.sub),
+      this.identities.activity(s.sub, ACTIVITY_DAYS, 10),
+    ]);
     await this.page(reply, s, 'account/security', 'Security & sign-in', 'security', {
       profile,
       identifiers,
+      devices: devicesView(sessions, s.sid).slice(0, 3),
+      deviceCount: sessions.length,
+      activity: activitiesView(events).slice(0, 3),
       done: flash(done),
+    });
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Devices and security activity
+  // ---------------------------------------------------------------------------------------
+
+  /** Where the member is signed in. Signing a device out needs no fresh sign-in: it only ever helps. */
+  @Get('devices')
+  async devices(
+    @Query('done') done: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/devices');
+    if (!s) return;
+    const sessions = await this.identities.liveSessions(s.sub);
+    await this.render(reply, s, 'account/devices', 'Your devices', 'security', {
+      devices: devicesView(sessions, s.sid),
+      done: flash(done),
+    });
+  }
+
+  @Post('devices/sign-out')
+  async signOutDevice(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/devices');
+    if (!s) return;
+    const { id } = parse(IdForm, body);
+    const ended = await this.db.tx(async (db) => {
+      const gone = await this.identities.endDevice(db, s.sub, id, s.sid);
+      if (gone) {
+        await this.identities.event(
+          {
+            ...this.seen(req, s),
+            kind: 'session_revoked',
+            outcome: 'success',
+            authSessionId: gone.id,
+            detail: { device: describeDevice(gone.userAgent).name },
+          },
+          db,
+        );
+      }
+      return gone;
+    });
+    // Already signed out, or not this member's: the list shows what is true now.
+    if (!ended) {
+      await redirect(reply, '/account/devices');
+      return;
+    }
+    await this.sessionEnder.endAtHydra([ended.sid]);
+    await redirect(reply, '/account/devices?done=device_signed_out');
+  }
+
+  @Post('devices/sign-out-others')
+  async signOutOthers(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/devices');
+    if (!s) return;
+    const ended = await this.db.tx(async (db) => {
+      const sids = await this.identities.endOtherDevices(db, s.sub, s.sid);
+      if (sids.length > 0) {
+        await this.identities.event(
+          {
+            ...this.seen(req, s),
+            kind: 'session_revoked',
+            outcome: 'success',
+            detail: { others: sids.length },
+          },
+          db,
+        );
+      }
+      return sids;
+    });
+    await this.sessionEnder.endAtHydra(ended);
+    await redirect(reply, `/account/devices${ended.length ? '?done=others_signed_out' : ''}`);
+  }
+
+  /** The last 90 days of the journal, in plain words (account-plan.md, Security activity). */
+  @Get('activity')
+  async activity(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/activity');
+    if (!s) return;
+    const events = await this.identities.activity(s.sub, ACTIVITY_DAYS);
+    await this.render(reply, s, 'account/activity', 'Security activity', 'security', {
+      activity: activitiesView(events),
+      days: ACTIVITY_DAYS,
     });
   }
 

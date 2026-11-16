@@ -2,7 +2,6 @@
 <% var day = function (d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }; %>
 <div class="page-head">
   <h1 id="title">Security &amp; sign-in</h1>
-  <p>Settings to keep your account safe.</p>
 </div>
 <section class="panel" aria-labelledby="h-how">
   <div class="panel-head">
@@ -27,4 +26,36 @@
       <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
     </a></li>
   </ul>
+</section>
+<section class="panel" aria-labelledby="h-devices">
+  <div class="panel-head">
+    <h2 id="h-devices">Your devices</h2>
+    <p>Where you’re signed in now.</p>
+  </div>
+  <ul class="rows">
+<% it.devices.forEach(function (d) { %>
+    <li><a class="row" href="/account/devices">
+      <span class="tile"><img src="<%= asset('icons/' + d.icon + '.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= d.name %><% if (d.current) { %><span class="tag inverse">This device</span><% } %></span><span class="s"><%= d.detail %></span></span>
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% }) %>
+  </ul>
+  <a class="panel-foot" href="/account/devices"><%= it.deviceCount > it.devices.length ? 'See all ' + it.deviceCount + ' devices' : 'Manage all devices' %><img src="<%= asset('icons/chevron-right-sm.svg') %>" alt="" width="16" height="16"></a>
+</section>
+<section class="panel" aria-labelledby="h-activity">
+  <div class="panel-head"><h2 id="h-activity">Recent security activity</h2></div>
+  <ul class="rows">
+<% if (!it.activity.length) { %>
+    <li class="row"><span class="text"><span class="s">Nothing in the last 90 days.</span></span></li>
+<% } %>
+<% it.activity.forEach(function (a) { %>
+    <li><a class="row" href="/account/activity">
+      <span class="tile"><img src="<%= asset('icons/' + a.icon + '.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= a.title %></span><span class="s"><%= a.detail %></span></span>
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% }) %>
+  </ul>
+  <a class="panel-foot" href="/account/activity">Review security activity<img src="<%= asset('icons/chevron-right-sm.svg') %>" alt="" width="16" height="16"></a>
 </section>

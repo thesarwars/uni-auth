@@ -2,7 +2,6 @@
 <% var rows = it.identifiers.slice().sort(function (a, b) { return (a.kind === b.kind ? 0 : a.kind === 'email' ? -1 : 1) || (b.primary - a.primary); }); %>
 <div class="page-head">
   <h1 id="title">Personal info</h1>
-  <p>Your name, language and how <%= it.providerName %> reaches you.</p>
 </div>
 <section class="panel" aria-labelledby="h-basic">
   <div class="panel-head">

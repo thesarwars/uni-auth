@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { EventRow, SessionRow } from '../account/device';
 import { Database, one, type Db } from '../db/database.service';
 import { identifierHash, type Identifier } from './identifier';
 
@@ -22,6 +23,7 @@ export interface AuthEvent {
   kind:
     | 'sign_in'
     | 'sign_out'
+    | 'session_revoked'
     | 'lockout'
     | 'password_reset'
     | 'credential_added'
@@ -240,6 +242,99 @@ export class IdentityRepository {
       [sid],
     );
     return row ? row.ok : null;
+  }
+
+  /**
+   * Marks a session seen as its tokens are refreshed: what "last active" on the Devices page
+   * reads. Only a live session moves; the refresh hook has already decided whether it may.
+   */
+  async touchSession(sid: string): Promise<void> {
+    await this.db.asDb().query(
+      `UPDATE auth_session SET last_seen_at = now()
+        WHERE sid = $1 AND revoked_at IS NULL AND expires_at > now() AND last_seen_at < now()`,
+      [sid],
+    );
+  }
+
+  /** An identity's live sessions - one per device it is signed in on - for the Devices page. */
+  async liveSessions(identityId: string): Promise<SessionRow[]> {
+    const res = await this.db.asDb().query<{
+      id: string;
+      sid: string;
+      user_agent: string | null;
+      created_at: Date;
+      last_seen_at: Date;
+    }>(
+      `SELECT id, sid, user_agent, created_at, last_seen_at FROM auth_session
+        WHERE identity_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        ORDER BY last_seen_at DESC, id DESC
+        LIMIT 100`,
+      [identityId],
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      sid: r.sid,
+      userAgent: r.user_agent,
+      createdAt: r.created_at,
+      lastSeenAt: r.last_seen_at,
+    }));
+  }
+
+  /**
+   * Signs one of the identity's own devices out, never `keepSid` (the device asking). The
+   * identity is part of the match: an id from another member's list ends nothing.
+   */
+  async endDevice(
+    db: Db,
+    identityId: string,
+    sessionId: string,
+    keepSid: string,
+  ): Promise<{ id: string; sid: string; userAgent: string | null } | null> {
+    const row = await one<{ id: string; sid: string; user_agent: string | null }>(
+      db,
+      `UPDATE auth_session SET revoked_at = now(), revoke_reason = 'sign_out'
+        WHERE id = $1 AND identity_id = $2 AND sid <> $3 AND revoked_at IS NULL
+        RETURNING id, sid, user_agent`,
+      [sessionId, identityId, keepSid],
+    );
+    return row ? { id: row.id, sid: row.sid, userAgent: row.user_agent } : null;
+  }
+
+  /** Signs out every device of the identity but `keepSid`. Returns the sids, for Hydra. */
+  async endOtherDevices(db: Db, identityId: string, keepSid: string): Promise<string[]> {
+    const res = await db.query<{ sid: string }>(
+      `UPDATE auth_session SET revoked_at = now(), revoke_reason = 'sign_out'
+        WHERE identity_id = $1 AND sid <> $2 AND revoked_at IS NULL
+        RETURNING sid`,
+      [identityId, keepSid],
+    );
+    return res.rows.map((r) => r.sid);
+  }
+
+  /** The identity's journal of the last `days` days, newest first, for Security activity. */
+  async activity(identityId: string, days = 90, limit = 100): Promise<EventRow[]> {
+    const res = await this.db.asDb().query<{
+      kind: string;
+      outcome: 'success' | 'failure';
+      credential_kind: string | null;
+      user_agent: string | null;
+      detail: Record<string, unknown> | null;
+      occurred_at: Date;
+    }>(
+      `SELECT kind, outcome, credential_kind, user_agent, detail, occurred_at FROM auth_event
+        WHERE identity_id = $1 AND occurred_at > now() - make_interval(days => $2)
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT $3`,
+      [identityId, days, limit],
+    );
+    return res.rows.map((r) => ({
+      kind: r.kind,
+      outcome: r.outcome,
+      credentialKind: r.credential_kind,
+      userAgent: r.user_agent,
+      detail: r.detail ?? {},
+      occurredAt: r.occurred_at,
+    }));
   }
 
   async markUsed(db: Db, credentialId: string): Promise<void> {

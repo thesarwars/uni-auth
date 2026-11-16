@@ -46,7 +46,12 @@ export class HooksController {
       this.logger.warn(`refresh for session ${sid}, which uni-auth did not open; allowed`);
       return;
     }
-    if (!ok) reply.status(403);
+    if (!ok) {
+      reply.status(403);
+      return;
+    }
+    // A refresh is the device being used: what "last active" on the Devices page shows.
+    await this.identities.touchSession(sid);
   }
 }
 
