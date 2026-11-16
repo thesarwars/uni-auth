@@ -99,7 +99,7 @@ services:
   # GEOIP_DB_PATH=./data/geoip/GeoLite2-City.mmdb in .env, then
   #   docker compose --profile geoip up -d geoipupdate
   geoipupdate:
-    image: ghcr.io/maxmind/geoipupdate:v7.1.1
+    image: maxmindinc/geoipupdate:v7.1.1
     profiles: [geoip]
     restart: unless-stopped
     environment:
