@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AccountController } from './account/account.controller';
 import { AccountOidc } from './account/account-oidc';
 import { AccountSessions } from './account/account-sessions';
+import { GeoIp } from './geo/geoip.service';
 import { AccountApps } from './account/account-apps';
 import { CsrfGuard } from './common/csrf.guard';
 import { PageErrorFilter } from './common/page-error.filter';
@@ -61,6 +62,7 @@ import { Upstream } from './upstream/upstream.service';
     AccountOidc,
     AccountSessions,
     AccountApps,
+    GeoIp,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

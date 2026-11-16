@@ -21,6 +21,7 @@ import { SessionEnder } from '../sessions/session-ender';
 import { ACCOUNT_CLIENT_ID, AccountOidc, AccountSignInFailed } from './account-oidc';
 import { AccountApps } from './account-apps';
 import { AccountSessions, type AccountSession } from './account-sessions';
+import { GeoIp } from '../geo/geoip.service';
 import { activitiesView, describeDevice, devicesView } from './device';
 
 const SESSION_COOKIE = 'ea_account';
@@ -94,6 +95,7 @@ export class AccountController {
     private readonly whatsapp: WhatsAppSender,
     private readonly sessionEnder: SessionEnder,
     private readonly apps: AccountApps,
+    private readonly geo: GeoIp,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -261,9 +263,9 @@ export class AccountController {
     await this.page(reply, s, 'account/security', 'Security & sign-in', 'security', {
       profile,
       identifiers,
-      devices: devicesView(sessions, s.sid).slice(0, 3),
+      devices: devicesView(sessions, s.sid, this.geo.place).slice(0, 3),
       deviceCount: sessions.length,
-      activity: activitiesView(events).slice(0, 3),
+      activity: activitiesView(events, this.geo.place).slice(0, 3),
       done: flash(done),
     });
   }
@@ -283,7 +285,8 @@ export class AccountController {
     if (!s) return;
     const sessions = await this.identities.liveSessions(s.sub);
     await this.render(reply, s, 'account/devices', 'Your devices', 'security', {
-      devices: devicesView(sessions, s.sid),
+      devices: devicesView(sessions, s.sid, this.geo.place),
+      geoip: this.geo.enabled,
       done: flash(done),
     });
   }
@@ -352,8 +355,9 @@ export class AccountController {
     if (!s) return;
     const events = await this.identities.activity(s.sub, ACTIVITY_DAYS);
     await this.render(reply, s, 'account/activity', 'Security activity', 'security', {
-      activity: activitiesView(events),
+      activity: activitiesView(events, this.geo.place),
       days: ACTIVITY_DAYS,
+      geoip: this.geo.enabled,
     });
   }
 
