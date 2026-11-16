@@ -2,7 +2,6 @@
 <div class="page-head">
   <a class="back" href="/account/security"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Security &amp; sign-in</a>
   <h1 id="title">Security activity</h1>
-  <p>Sign-ins and changes to your account.</p>
 </div>
 <section class="panel" aria-labelledby="h-days">
   <div class="panel-head"><h2 id="h-days">Last <%= it.days %> days</h2></div>

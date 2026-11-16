@@ -3,7 +3,6 @@
 <div class="page-head">
   <a class="back" href="/account/personal"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Personal info</a>
   <h1 id="title">Email and phone</h1>
-  <p>The addresses you sign in with and get codes at. Your primary email is where we send security alerts.</p>
 </div>
 <% if (it.error) { %><p id="contact-error" class="flash bad" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p><% } %>
 <% [['email', 'Email addresses', emails], ['phone', 'Phone numbers', phones]].forEach(function (group) { if (group[0] === 'phone' && !phones.length) return; %>
