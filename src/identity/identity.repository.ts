@@ -150,12 +150,16 @@ export class IdentityRepository {
       ip: string | null;
       userAgent: string | null;
       lifetimeSeconds: number;
+      deviceLabel?: string | null;
+      geoCity?: string | null;
+      geoCountry?: string | null;
     },
   ): Promise<string | null> {
     const row = await one<{ id: string }>(
       db,
-      `INSERT INTO auth_session (identity_id, credential_id, sid, client_id, ip_address, user_agent, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7))
+      `INSERT INTO auth_session (identity_id, credential_id, sid, client_id, ip_address, user_agent, expires_at,
+                                 device_label, geo_city, geo_country)
+       VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7), $8, $9, $10)
        ON CONFLICT (sid) DO UPDATE SET last_seen_at = now()
          WHERE auth_session.identity_id = EXCLUDED.identity_id
            AND auth_session.revoked_at IS NULL AND auth_session.expires_at > now()
@@ -168,6 +172,9 @@ export class IdentityRepository {
         s.ip,
         truncate(s.userAgent),
         s.lifetimeSeconds,
+        s.deviceLabel ?? null,
+        s.geoCity ?? null,
+        s.geoCountry ?? null,
       ],
     );
     return row?.id ?? null;
@@ -263,10 +270,14 @@ export class IdentityRepository {
       sid: string;
       user_agent: string | null;
       ip: string | null;
+      device_label: string | null;
+      geo_city: string | null;
+      geo_country: string | null;
       created_at: Date;
       last_seen_at: Date;
     }>(
-      `SELECT id, sid, user_agent, host(ip_address) AS ip, created_at, last_seen_at FROM auth_session
+      `SELECT id, sid, user_agent, host(ip_address) AS ip, device_label, geo_city, geo_country,
+              created_at, last_seen_at FROM auth_session
         WHERE identity_id = $1 AND revoked_at IS NULL AND expires_at > now()
         ORDER BY last_seen_at DESC, id DESC
         LIMIT 100`,
@@ -277,6 +288,9 @@ export class IdentityRepository {
       sid: r.sid,
       userAgent: r.user_agent,
       ip: r.ip,
+      deviceLabel: r.device_label,
+      geoCity: r.geo_city,
+      geoCountry: r.geo_country,
       createdAt: r.created_at,
       lastSeenAt: r.last_seen_at,
     }));

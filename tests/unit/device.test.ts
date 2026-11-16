@@ -7,7 +7,7 @@ import {
   noPlace,
   when,
 } from '../../src/account/device';
-import { GeoIp, placeOf } from '../../src/geo/geoip.service';
+import { GeoIp, countryName, locatedOf, placeOf } from '../../src/geo/geoip.service';
 
 /** A stand-in for the GeoLite2 lookup: two known addresses. */
 const fakePlace = (ip: string | null | undefined) =>
@@ -128,6 +128,26 @@ describe('devicesView', () => {
     );
     expect(v.map((d) => d.detail)).toEqual(['Leeds. Active now.', 'Safari, London. 2 hours ago.']);
   });
+
+  it('prefers the device and place recorded at sign-in over a lookup now', () => {
+    const now = new Date('2026-11-16T12:00:00Z');
+    const base = { userAgent: UA.macChrome, ip: '81.2.69.142', createdAt: now, lastSeenAt: now };
+    const v = devicesView(
+      [
+        { ...base, id: 'a', sid: 'sid-a', deviceLabel: 'iPad', geoCity: 'Dhaka', geoCountry: 'BD' },
+        { ...base, id: 'b', sid: 'sid-b', deviceLabel: null, geoCity: null, geoCountry: 'BD' },
+        { ...base, id: 'c', sid: 'sid-c', deviceLabel: null, geoCity: null, geoCountry: null },
+      ],
+      'sid-x',
+      fakePlace,
+      now,
+    );
+    expect(v.map((d) => [d.name, d.detail])).toEqual([
+      ['iPad', 'Chrome, Dhaka. Active now.'],
+      ['Mac', 'Chrome, Bangladesh. Active now.'],
+      ['Mac', 'Chrome, London. Active now.'],
+    ]);
+  });
 });
 
 describe('activityView', () => {
@@ -216,11 +236,28 @@ describe('GeoIp', () => {
     expect(placeOf(null)).toBeNull();
   });
 
+  it('records the city and the ISO country code', () => {
+    expect(
+      locatedOf({
+        city: { names: { en: 'London' } },
+        country: { iso_code: 'GB', names: { en: 'United Kingdom' } },
+      } as never),
+    ).toEqual({ city: 'London', country: 'GB' });
+    expect(locatedOf({ country: { iso_code: 'gb' } } as never)).toEqual({
+      city: null,
+      country: null,
+    });
+    expect(locatedOf(null)).toEqual({ city: null, country: null });
+    expect(countryName('GB')).toBe('United Kingdom');
+    expect(countryName(null)).toBeNull();
+  });
+
   it('knows nowhere without a database', async () => {
     const geo = new GeoIp();
     await geo.onModuleInit();
     expect(geo.enabled).toBe(false);
     expect(geo.place('81.2.69.142')).toBeNull();
     expect(geo.place('not an ip')).toBeNull();
+    expect(geo.locate('81.2.69.142')).toEqual({ city: null, country: null });
   });
 });

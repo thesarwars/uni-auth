@@ -192,6 +192,18 @@ describe('security activity', () => {
   });
 });
 
+describe('device and place at sign-in', () => {
+  it('records nothing it cannot tell: no device in the user agent, no GeoIP database', async () => {
+    const m = await createMember();
+    await signIn(m);
+    const rows = await sql(
+      'SELECT device_label, geo_city, geo_country FROM auth_session WHERE identity_id = $1',
+      [m.identityId],
+    );
+    expect(rows).toEqual([{ device_label: null, geo_city: null, geo_country: null }]);
+  });
+});
+
 describe('last seen', () => {
   it('moves forward when a refresh is let through', async () => {
     const m = await createMember();

@@ -1,4 +1,4 @@
-import type { Place } from '../geo/geoip.service';
+import { countryName, type Place } from '../geo/geoip.service';
 
 /**
  * Plain words for the Devices and Security activity pages. Device names come from the user
@@ -99,8 +99,20 @@ export interface SessionRow {
   sid: string;
   userAgent: string | null;
   ip: string | null;
+  /** Recorded at sign-in (0006_session_device.sql); null on a session opened before that. */
+  deviceLabel?: string | null;
+  geoCity?: string | null;
+  geoCountry?: string | null;
   createdAt: Date;
   lastSeenAt: Date;
+}
+
+/**
+ * Where a session was opened: the place recorded at sign-in, else (a session from before it
+ * was recorded) a lookup of its address now.
+ */
+function sessionPlace(r: SessionRow, place: Place): string | null {
+  return r.geoCity || countryName(r.geoCountry) || place(r.ip);
 }
 
 export interface DeviceView {
@@ -129,10 +141,10 @@ export function devicesView(
       const d = describeDevice(r.userAgent);
       const current = r.sid === currentSid;
       const seen = current ? 'Active now' : ago(r.lastSeenAt, now);
-      const where = [d.browser, place(r.ip)].filter(Boolean).join(', ');
+      const where = [d.browser, sessionPlace(r, place)].filter(Boolean).join(', ');
       return {
         id: r.id,
-        name: d.name,
+        name: r.deviceLabel || d.name,
         icon: d.icon,
         detail: where ? `${where}. ${seen}.` : `${seen}.`,
         current,
