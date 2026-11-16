@@ -262,10 +262,11 @@ export class IdentityRepository {
       id: string;
       sid: string;
       user_agent: string | null;
+      ip: string | null;
       created_at: Date;
       last_seen_at: Date;
     }>(
-      `SELECT id, sid, user_agent, created_at, last_seen_at FROM auth_session
+      `SELECT id, sid, user_agent, host(ip_address) AS ip, created_at, last_seen_at FROM auth_session
         WHERE identity_id = $1 AND revoked_at IS NULL AND expires_at > now()
         ORDER BY last_seen_at DESC, id DESC
         LIMIT 100`,
@@ -275,6 +276,7 @@ export class IdentityRepository {
       id: r.id,
       sid: r.sid,
       userAgent: r.user_agent,
+      ip: r.ip,
       createdAt: r.created_at,
       lastSeenAt: r.last_seen_at,
     }));
@@ -318,10 +320,12 @@ export class IdentityRepository {
       outcome: 'success' | 'failure';
       credential_kind: string | null;
       user_agent: string | null;
+      ip: string | null;
       detail: Record<string, unknown> | null;
       occurred_at: Date;
     }>(
-      `SELECT kind, outcome, credential_kind, user_agent, detail, occurred_at FROM auth_event
+      `SELECT kind, outcome, credential_kind, user_agent, host(ip_address) AS ip, detail, occurred_at
+         FROM auth_event
         WHERE identity_id = $1 AND occurred_at > now() - make_interval(days => $2)
         ORDER BY occurred_at DESC, id DESC
         LIMIT $3`,
@@ -332,6 +336,7 @@ export class IdentityRepository {
       outcome: r.outcome,
       credentialKind: r.credential_kind,
       userAgent: r.user_agent,
+      ip: r.ip,
       detail: r.detail ?? {},
       occurredAt: r.occurred_at,
     }));

@@ -96,6 +96,12 @@ const Env = z.object({
   PRIVACY_URL: optionalUrl,
   TERMS_URL: optionalUrl,
 
+  /**
+   * A MaxMind GeoLite2 City database (.mmdb), for the approximate location on Devices and
+   * Security activity. Unset or missing, locations are left out.
+   */
+  GEOIP_DB_PATH: z.string().default(''),
+
   /** How long the provider remembers a sign-in: the 90-day ceiling auth_session enforces. */
   REMEMBER_SECONDS: z.coerce
     .number()

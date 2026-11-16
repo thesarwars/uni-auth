@@ -1,8 +1,13 @@
+import type { Place } from '../geo/geoip.service';
+
 /**
  * Plain words for the Devices and Security activity pages. Device names come from the user
  * agent, parsed here and nowhere else (account-plan.md AC-D6): no user agent leaves the
- * estate. Location waits for the GeoIP choice (OQ-AC-8); until then a row names the browser.
+ * estate. Places come from the local GeoLite2 database (GeoIp), when there is one.
  */
+
+/** No GeoIP database: every place unknown. */
+export const noPlace: Place = () => null;
 
 export type DeviceIcon = 'laptop' | 'mobile';
 
@@ -93,6 +98,7 @@ export interface SessionRow {
   id: string;
   sid: string;
   userAgent: string | null;
+  ip: string | null;
   createdAt: Date;
   lastSeenAt: Date;
 }
@@ -101,7 +107,7 @@ export interface DeviceView {
   id: string;
   name: string;
   icon: DeviceIcon;
-  /** "Chrome. Active now." - the browser, then how long since it was last used. */
+  /** "Chrome, London. Active now." - browser and place, then how long since it was last used. */
   detail: string;
   current: boolean;
 }
@@ -110,6 +116,7 @@ export interface DeviceView {
 export function devicesView(
   rows: SessionRow[],
   currentSid: string,
+  place: Place = noPlace,
   now = new Date(),
 ): DeviceView[] {
   return [...rows]
@@ -122,11 +129,12 @@ export function devicesView(
       const d = describeDevice(r.userAgent);
       const current = r.sid === currentSid;
       const seen = current ? 'Active now' : ago(r.lastSeenAt, now);
+      const where = [d.browser, place(r.ip)].filter(Boolean).join(', ');
       return {
         id: r.id,
         name: d.name,
         icon: d.icon,
-        detail: d.browser ? `${d.browser}. ${seen}.` : `${seen}.`,
+        detail: where ? `${where}. ${seen}.` : `${seen}.`,
         current,
       };
     });
@@ -141,6 +149,7 @@ export interface EventRow {
   outcome: 'success' | 'failure';
   credentialKind: string | null;
   userAgent: string | null;
+  ip: string | null;
   detail: Record<string, unknown>;
   occurredAt: Date;
 }
@@ -149,7 +158,7 @@ export interface ActivityView {
   /** An icon in public/icons, without ".svg". */
   icon: string;
   title: string;
-  /** "Today at 09:12, Chrome on iPhone". */
+  /** "Today at 09:12, London" - or, with no place known, "Today at 09:12, Chrome on iPhone". */
   detail: string;
 }
 
@@ -157,7 +166,11 @@ const PROVIDER: Record<string, string> = { oauth_google: 'Google', oauth_apple: 
 const PROVIDER_ICON: Record<string, string> = { oauth_google: 'google', oauth_apple: 'apple' };
 
 /** One journal row in plain words; null for a row the member has no use for. */
-export function activityView(e: EventRow, now = new Date()): ActivityView | null {
+export function activityView(
+  e: EventRow,
+  place: Place = noPlace,
+  now = new Date(),
+): ActivityView | null {
   const device = describeDevice(e.userAgent);
   const on = e.userAgent
     ? device.browser
@@ -165,7 +178,8 @@ export function activityView(e: EventRow, now = new Date()): ActivityView | null
       : device.name
     : null;
   const at = when(e.occurredAt, now);
-  const detail = on ? `${at}, ${on}` : at;
+  const where = place(e.ip) ?? on;
+  const detail = where ? `${at}, ${where}` : at;
   const kindOf = (d: Record<string, unknown>) =>
     d.kind === 'phone' ? 'Phone number' : 'Email address';
   const what = describe();
@@ -240,6 +254,10 @@ export function activityView(e: EventRow, now = new Date()): ActivityView | null
   }
 }
 
-export function activitiesView(rows: EventRow[], now = new Date()): ActivityView[] {
-  return rows.map((r) => activityView(r, now)).filter((v): v is ActivityView => v !== null);
+export function activitiesView(
+  rows: EventRow[],
+  place: Place = noPlace,
+  now = new Date(),
+): ActivityView[] {
+  return rows.map((r) => activityView(r, place, now)).filter((v): v is ActivityView => v !== null);
 }

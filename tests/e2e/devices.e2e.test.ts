@@ -67,6 +67,9 @@ describe('your devices', () => {
     const { b } = await signIn(m);
     const page = await open(b, '/account/devices');
     expect(page.html).toContain('<h1 id="title">Your devices</h1>');
+    // No subtitle; and no GeoIP database in the tests, so no MaxMind small print either.
+    expect(page.html).not.toContain('Signing out a device signs it out');
+    expect(page.html).not.toContain('GeoLite2');
     expect(page.html.match(/class="tag inverse">This device</g)).toHaveLength(1);
     // Two devices, one button: the other one.
     expect(sessionIds(page)).toHaveLength(1);

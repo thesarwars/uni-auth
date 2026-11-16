@@ -27,3 +27,6 @@
     </li>
   </ul>
 </section>
+<% if (it.geoip) { %>
+<p class="fine">Locations are approximate. This product includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">maxmind.com</a>.</p>
+<% } %>

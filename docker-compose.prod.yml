@@ -154,6 +154,10 @@ services:
       APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
       APPLE_KEY_ID: ${APPLE_KEY_ID:-}
       APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      # Filled by geoipupdate; with no file, locations are simply left out.
+      GEOIP_DB_PATH: /usr/share/GeoIP/GeoLite2-City.mmdb
+    volumes:
+      - geoip:/usr/share/GeoIP:ro
     ports:
       - '127.0.0.1:${LOGIN_PORT:-3120}:3100'
     depends_on:
@@ -164,9 +168,26 @@ services:
       interval: 5s
       retries: 20
 
+  # MaxMind GeoLite2 City, for the approximate location on Devices and Security activity
+  # (account-plan.md AC-D6). Downloads the database into the geoip volume and refreshes it
+  # every three days; the login application re-reads it when it changes. Runs only with the
+  # geoip profile (COMPOSE_PROFILES=geoip in .env), which needs a free MaxMind account.
+  geoipupdate:
+    image: ghcr.io/maxmind/geoipupdate:v7.1.1
+    profiles: [geoip]
+    restart: unless-stopped
+    environment:
+      GEOIPUPDATE_ACCOUNT_ID: ${MAXMIND_ACCOUNT_ID:-}
+      GEOIPUPDATE_LICENSE_KEY: ${MAXMIND_LICENSE_KEY:-}
+      GEOIPUPDATE_EDITION_IDS: GeoLite2-City
+      GEOIPUPDATE_FREQUENCY: 72
+    volumes:
+      - geoip:/usr/share/GeoIP
+
 volumes:
   identity-db:
   hydra-db:
+  geoip:
 
 networks:
   default:
