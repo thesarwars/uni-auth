@@ -242,7 +242,7 @@ describe('every page refuses framing and keeps its URL to itself', () => {
   }
 });
 
-describe('the only script is our own file', () => {
+describe('the only scripts are our own files', () => {
   const views = join(__dirname, '..', '..', 'views');
   it('no view holds an inline script, an event handler attribute or another script', () => {
     const scripts: string[] = [];
@@ -253,15 +253,20 @@ describe('the only script is our own file', () => {
       for (const [tag] of source.matchAll(/<script\b[^>]*>/g)) scripts.push(`${file}: ${tag}`);
     }
     // The match stops at the '>' of the template tag that writes the versioned URL.
-    expect(scripts).toEqual([`layout.eta: <script src="<%= asset('password.js') %>`]);
+    expect(scripts).toEqual([
+      `layout.eta: <script src="<%= asset('password.js') %>`,
+      `layout.eta: <script src="<%= asset('webauthn.js') %>`,
+    ]);
   });
 
-  it('serves it as JavaScript, with nosniff', async () => {
-    const res = await fetch(`${APP}/assets/password.js`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toMatch(/^text\/javascript/);
-    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(await res.text()).toContain("'use strict'");
+  it('serves them as JavaScript, with nosniff', async () => {
+    for (const name of ['password.js', 'webauthn.js']) {
+      const res = await fetch(`${APP}/assets/${name}`);
+      expect(res.status, name).toBe(200);
+      expect(res.headers.get('content-type')).toMatch(/^text\/javascript/);
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(await res.text()).toContain("'use strict'");
+    }
   });
 
   it('serves the logo sizes as PNG, and nothing else from the folder', async () => {

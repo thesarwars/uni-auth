@@ -94,7 +94,7 @@ describe('sign-in round trip', () => {
     expect(at).toMatch(/^http:\/\/localhost:3100\/login\?login_challenge=/);
     expect(hop.status).toBe(200);
     expect(hop.html).toContain('Sign in to continue to Go Style Network');
-    expect(hop.html).toContain('autocomplete="username"');
+    expect(hop.html).toContain('autocomplete="username webauthn"');
     expect(formFields(hop.html)._csrf).toBeTruthy();
     expect(hop.headers.get('cache-control')).toBe('no-store');
     expect(hop.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");

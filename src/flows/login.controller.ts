@@ -121,6 +121,7 @@ export class LoginController {
     @Query('upstream_error') upstreamError: unknown,
     @Query('upstream_signup') upstreamSignup: unknown,
     @Query('create') create: unknown,
+    @Query('passkey') passkey: unknown,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
@@ -161,7 +162,7 @@ export class LoginController {
       }
     }
     await this.identifierScreen(reply, challenge, request, {
-      error: upstreamReason(upstream, upstreamError),
+      error: passkeyReason(passkey) ?? upstreamReason(upstream, upstreamError),
       create: create === '1',
     });
   }
@@ -1021,6 +1022,13 @@ function heading(purpose: OtpPurpose | null, id: Identifier): string {
 const providerName = (p: Provider): string => (p === 'google' ? 'Google' : 'Apple');
 
 /** The one-line reason for coming back from Google or Apple without being signed in. */
+/** Why a passkey sign-in came back here (PasskeySignInController). */
+function passkeyReason(why: unknown): string | undefined {
+  if (why === 'suspended') return 'This account is suspended, so it cannot sign in.';
+  if (why === 'failed') return "That passkey couldn't be used. Try again, or sign in another way.";
+  return undefined;
+}
+
 function upstreamReason(provider: unknown, why: unknown): string | undefined {
   if (provider !== 'google' && provider !== 'apple') return undefined;
   const name = providerName(provider);

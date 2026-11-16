@@ -1,0 +1,33 @@
+<% layout('./layout') %>
+<% var day = function (d) { return d.toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', year: 'numeric' }); }; %>
+<div class="page-head">
+  <a class="back" href="/account/security"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Security &amp; sign-in</a>
+  <h1 id="title">Passkeys</h1>
+</div>
+<section class="panel" aria-labelledby="h-passkeys">
+  <div class="panel-head">
+    <h2 id="h-passkeys"><%= it.passkeys.length ? 'Your passkeys' : 'Sign in without a password' %></h2>
+    <p>A passkey lets you sign in with your fingerprint, face or screen lock instead of a password. It stays on your device or in your password manager, and only works on this site.</p>
+  </div>
+<% if (it.passkeys.length) { %>
+  <ul class="rows">
+<% it.passkeys.forEach(function (p) { %>
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/key.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= p.nickname %><% if (p.synced) { %><span class="tag">Synced</span><% } %></span><span class="s">Added <%= day(p.createdAt) %><% if (p.lastUsedAt) { %> · Last used <%= day(p.lastUsedAt) %><% } else { %> · Not used yet<% } %></span></span>
+      <span class="do">
+        <a class="btn stroke small" href="/account/passkeys/rename?id=<%= p.id %>" aria-label="Rename <%= p.nickname %>">Rename</a>
+        <form method="post" action="/account/passkeys/remove">
+          <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+          <input type="hidden" name="id" value="<%= p.id %>">
+          <button type="submit" class="btn stroke small danger-text" aria-label="Remove <%= p.nickname %>">Remove</button>
+        </form>
+      </span>
+    </li>
+<% }) %>
+  </ul>
+<% } %>
+  <div class="panel-actions">
+    <a class="btn<%= it.passkeys.length ? ' stroke' : '' %> small" href="/account/passkeys/add">Add a passkey</a>
+  </div>
+</section>

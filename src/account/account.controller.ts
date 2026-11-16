@@ -27,6 +27,7 @@ import { MfaKeys } from '../two-step/mfa-keys';
 import { newCodes, shown } from '../two-step/recovery-codes';
 import { base32, grouped, matchStep, newSeed, otpauthUri } from '../two-step/totp';
 import { TwoStepStore } from '../two-step/two-step.store';
+import { Passkeys } from '../passkeys/passkeys.service';
 import { activitiesView, describeDevice, devicesView } from './device';
 
 const SESSION_COOKIE = 'ea_account';
@@ -62,6 +63,9 @@ const DONE: Record<string, string> = {
   two_step_on: '2-step verification is on.',
   two_step_off: '2-step verification is off.',
   codes_saved: 'New recovery codes are ready. Your old ones no longer work.',
+  passkey_added: 'Passkey added. You can now sign in with it.',
+  passkey_renamed: 'Passkey renamed.',
+  passkey_removed: 'Passkey removed.',
 };
 
 const ReturnTo = z
@@ -84,6 +88,8 @@ const VerifyForm = z.object({
 const IdForm = z.object({ id: z.string().uuid() });
 const PasswordForm = z.object({ password: z.string().max(1024), confirm: z.string().max(1024) });
 const TotpForm = z.object({ code: z.string().max(20) });
+const PasskeyForm = z.object({ credential: z.string().min(2).max(40_000) });
+const RenameForm = z.object({ id: z.string().uuid(), name: z.string().max(400) });
 
 /**
  * The account centre (account-plan.md): a member's own entity-auth account - personal info,
@@ -107,6 +113,7 @@ export class AccountController {
     private readonly geo: GeoIp,
     private readonly mfa: MfaKeys,
     private readonly twoStepStore: TwoStepStore,
+    private readonly passkeys: Passkeys,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -266,17 +273,19 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/security');
     if (!s) return;
-    const [{ profile, identifiers }, sessions, events, twoStep] = await Promise.all([
+    const [{ profile, identifiers }, sessions, events, twoStep, passkeys] = await Promise.all([
       this.load(s),
       this.identities.liveSessions(s.sub),
       this.identities.activity(s.sub, ACTIVITY_DAYS, 10),
       this.identities.twoStep(s.sub),
+      this.identities.passkeys(s.sub),
     ]);
     await this.page(reply, s, 'account/security', 'Security & sign-in', 'security', {
       profile,
       identifiers,
       twoStep,
       twoStepAvailable: this.mfa.enabled,
+      passkeyCount: passkeys.length,
       devices: devicesView(sessions, s.sid, this.geo.place).slice(0, 3),
       deviceCount: sessions.length,
       activity: activitiesView(events, this.geo.place).slice(0, 3),
@@ -866,6 +875,210 @@ export class AccountController {
     await redirect(reply, '/account/two-step?done=two_step_off');
   }
 
+  // ---------------------------------------------------------------------------------------
+  // Passkeys (account-plan.md part 5)
+  // ---------------------------------------------------------------------------------------
+
+  @Get('passkeys')
+  async passkeyList(
+    @Query('done') done: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/passkeys');
+    if (!s) return;
+    await this.render(reply, s, 'account/passkeys', 'Passkeys', 'security', {
+      passkeys: await this.identities.passkeys(s.sub),
+      done: flash(done),
+    });
+  }
+
+  /** Adding one needs a fresh sign-in (AC-D2); the browser makes it (public/webauthn.js). */
+  @Get('passkeys/add')
+  async passkeyAdd(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/passkeys/add', { fresh: true });
+    if (!s) return;
+    await this.passkeyAddPage(reply, s);
+  }
+
+  /**
+   * navigator.credentials.create options. Asked for by the page's script, so a stale sign-in
+   * is answered 401: the script reloads the page, whose guard asks the member to confirm.
+   */
+  @Get('passkeys/options')
+  async passkeyOptions(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
+    const s = await this.current(req);
+    reply.header('cache-control', 'no-store');
+    if (!s || !isFresh(s)) return reply.status(401).send({});
+    return reply.send(await this.passkeys.addOptions(passkeyFlow(s), s.sub));
+  }
+
+  @Post('passkeys/add')
+  async addPasskey(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/passkeys/add', { fresh: true });
+    if (!s) return;
+    const form = parse(PasskeyForm, body);
+    const made = await this.passkeys.verifyAdd(
+      passkeyFlow(s),
+      form.credential,
+      req.headers['user-agent'] ?? null,
+    );
+    if (!made) {
+      await this.passkeyAddPage(reply, s, "That passkey couldn't be saved. Try again.");
+      return;
+    }
+    try {
+      await this.db.tx(async (db) => {
+        await this.identities.addPasskey(db, s.sub, made);
+        await this.identities.event(
+          {
+            ...this.seen(req, s),
+            kind: 'credential_added',
+            outcome: 'success',
+            credentialKind: 'passkey',
+            detail: { name: made.nickname },
+          },
+          db,
+        );
+      });
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      // 23505: already saved (sent twice). 23514: the twenty-passkey limit.
+      if (code === '23505') {
+        await redirect(reply, '/account/passkeys');
+        return;
+      }
+      if (code !== '23514') throw err;
+      await this.passkeyAddPage(
+        reply,
+        s,
+        'You have 20 passkeys, the most an account can have. Remove one to add another.',
+      );
+      return;
+    }
+    await this.notify(s.sub, 'A passkey was added to your account', [
+      `A passkey (“${made.nickname}”) was added to your account. It can now be used to sign in without a password.`,
+    ]);
+    await redirect(reply, '/account/passkeys?done=passkey_added');
+  }
+
+  @Get('passkeys/rename')
+  async passkeyRename(
+    @Query('id') id: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/passkeys');
+    if (!s) return;
+    const passkey = await this.ownPasskey(s, id);
+    if (!passkey) {
+      await redirect(reply, '/account/passkeys');
+      return;
+    }
+    await this.renamePage(reply, s, passkey.id, passkey.nickname);
+  }
+
+  /** A name only: no fresh sign-in needed. */
+  @Post('passkeys/rename')
+  async renamePasskey(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/passkeys');
+    if (!s) return;
+    const form = parse(RenameForm, body);
+    const name = form.name.trim().replace(/\s+/g, ' ');
+    if (!name || Array.from(name).length > 60 || name.length > 60) {
+      await this.renamePage(reply, s, form.id, form.name, 'Enter a name of up to 60 characters.');
+      return;
+    }
+    if (!(await this.identities.renamePasskey(s.sub, form.id, name))) {
+      await redirect(reply, '/account/passkeys');
+      return;
+    }
+    await redirect(reply, '/account/passkeys?done=passkey_renamed');
+  }
+
+  @Post('passkeys/remove')
+  async removePasskey(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/passkeys', { fresh: true });
+    if (!s) return;
+    const { id } = parse(IdForm, body);
+    const name = await this.db.tx(async (db) => {
+      const was = await this.identities.removePasskey(db, s.sub, id);
+      if (was) {
+        await this.identities.event(
+          {
+            ...this.seen(req, s),
+            kind: 'credential_revoked',
+            outcome: 'success',
+            credentialKind: 'passkey',
+            detail: { name: was },
+          },
+          db,
+        );
+      }
+      return was;
+    });
+    if (!name) {
+      await redirect(reply, '/account/passkeys');
+      return;
+    }
+    await this.notify(s.sub, 'A passkey was removed from your account', [
+      `The passkey “${name}” was removed from your account. It can no longer be used to sign in.`,
+    ]);
+    await redirect(reply, '/account/passkeys?done=passkey_removed');
+  }
+
+  private async passkeyAddPage(
+    reply: FastifyReply,
+    s: AccountSession,
+    error?: string,
+  ): Promise<void> {
+    await this.render(
+      reply,
+      s,
+      'account/passkey-add',
+      'Add a passkey',
+      'security',
+      { error: error ?? null },
+      error ? 422 : 200,
+    );
+  }
+
+  private async renamePage(
+    reply: FastifyReply,
+    s: AccountSession,
+    id: string,
+    name: string,
+    error?: string,
+  ): Promise<void> {
+    await this.render(
+      reply,
+      s,
+      'account/passkey-rename',
+      'Rename passkey',
+      'security',
+      { id, name, error: error ?? null },
+      error ? 422 : 200,
+    );
+  }
+
+  private async ownPasskey(s: AccountSession, id: unknown) {
+    const r = z.string().uuid().safeParse(id);
+    if (!r.success) return null;
+    return (await this.identities.passkeys(s.sub)).find((p) => p.id === r.data) ?? null;
+  }
+
   private async setupPage(reply: FastifyReply, s: AccountSession, error?: string): Promise<void> {
     let sealed = await this.twoStepStore.setup(s.id);
     if (!sealed) {
@@ -1183,6 +1396,9 @@ const isFresh = (s: AccountSession): boolean => Date.now() / 1000 - s.authTime <
 
 /** The flow a code from the account centre is bound to: this account session, nothing else. */
 const flowOf = (s: AccountSession): string => `account:${s.id}`;
+
+/** The passkey being added in this account session. */
+const passkeyFlow = (s: AccountSession): string => `account-passkey:${s.id}`;
 
 const phonesAccepted = (): boolean => env.WHATSAPP_DELIVERY !== 'off';
 

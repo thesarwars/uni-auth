@@ -7,6 +7,8 @@ import { GeoIp } from './geo/geoip.service';
 import { MfaKeys } from './two-step/mfa-keys';
 import { TwoStepController } from './two-step/two-step.controller';
 import { TwoStepStore } from './two-step/two-step.store';
+import { PasskeySignInController } from './passkeys/passkey-sign-in.controller';
+import { Passkeys } from './passkeys/passkeys.service';
 import { AccountApps } from './account/account-apps';
 import { CsrfGuard } from './common/csrf.guard';
 import { PageErrorFilter } from './common/page-error.filter';
@@ -45,6 +47,7 @@ import { Upstream } from './upstream/upstream.service';
     SystemController,
     AccountController,
     TwoStepController,
+    PasskeySignInController,
   ],
   providers: [
     HydraAdmin,
@@ -69,6 +72,7 @@ import { Upstream } from './upstream/upstream.service';
     GeoIp,
     MfaKeys,
     TwoStepStore,
+    Passkeys,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

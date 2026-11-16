@@ -8,18 +8,26 @@ import { SignIn, TWO_STEP_COOKIE, type Seen } from '../flows/sign-in.service';
 import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { IdentityRepository } from '../identity/identity.repository';
 import { Throttle } from '../throttle/throttle.service';
+import { Passkeys } from '../passkeys/passkeys.service';
 import { MfaKeys } from './mfa-keys';
 import { normalise } from './recovery-codes';
 import { matchStep } from './totp';
 import { TwoStepStore, type PendingTwoStep } from './two-step.store';
 
+/** The screen's two states; a passkey is used from either. */
 const Mode = z.enum(['app', 'recovery']);
 type Mode = z.infer<typeof Mode>;
-const Form = z.object({
-  login_challenge: Challenge,
-  mode: Mode,
-  code: z.string().max(40),
-});
+const Form = z.discriminatedUnion('mode', [
+  z.object({ login_challenge: Challenge, mode: Mode, code: z.string().max(40) }),
+  z.object({
+    login_challenge: Challenge,
+    mode: z.literal('passkey'),
+    credential: z.string().min(2).max(40_000),
+  }),
+]);
+
+/** The passkey ceremony of one sign-in's second step. */
+const flowOf = (challenge: string): string => `two-step:${challenge}`;
 
 /** The remaining-attempts count is shown only once it is this low, as on the other screens. */
 const WARN_AT = 2;
@@ -42,6 +50,7 @@ export class TwoStepController {
     private readonly throttle: Throttle,
     private readonly signIn: SignIn,
     private readonly email: EmailSender,
+    private readonly passkeys: Passkeys,
   ) {}
 
   @Get()
@@ -63,6 +72,20 @@ export class TwoStepController {
     await this.screen(reply, challenge, request, pending, mode, {
       locked: locked.kind === 'locked' ? locked.until : undefined,
     });
+  }
+
+  /** navigator.credentials.get options: only the passkeys of the member signing in. */
+  @Get('passkey')
+  async passkeyOptions(
+    @Query('login_challenge') raw: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ) {
+    const challenge = parse(Challenge, raw);
+    const pending = await this.pending(req, challenge);
+    if (!pending) return reply.status(401).header('cache-control', 'no-store').send({});
+    const options = await this.passkeys.signInOptions(flowOf(challenge), pending.a.identityId);
+    return reply.header('cache-control', 'no-store').send(options);
   }
 
   @Post()
@@ -91,8 +114,40 @@ export class TwoStepController {
     const identityId = pending.a.identityId;
 
     const before = await this.throttle.check(key, seen.ip);
+    const shownMode: Mode = form.mode === 'passkey' ? 'app' : form.mode;
     if (before.kind === 'locked') {
-      await this.screen(reply, challenge, request, pending, form.mode, { locked: before.until });
+      await this.screen(reply, challenge, request, pending, shownMode, { locked: before.until });
+      return;
+    }
+
+    // A passkey: nothing to guess, so no throttle; its own refusals are journalled.
+    if (form.mode === 'passkey') {
+      const used = await this.passkeys.verifySignIn(flowOf(challenge), form.credential, {
+        identityId,
+        requireUserVerification: false,
+      });
+      if ('reason' in used) {
+        if (used.reason === 'refused') {
+          await this.identities.event({
+            kind: 'sign_in',
+            outcome: 'failure',
+            identityId,
+            clientId: request.client.client_id,
+            credentialKind: 'passkey',
+            detail: { reason: 'passkey_refused', why: used.why, step: 'two_step' },
+            ...seen,
+          });
+        }
+        await this.screen(reply, challenge, request, pending, 'app', {
+          error: "That passkey couldn't be used. Try again, or enter a code instead.",
+        });
+        return;
+      }
+      await this.throttle.succeed(key);
+      await this.finish(reply, challenge, request, seen, pending, {
+        method: 'passkey',
+        amr: used.method,
+      });
       return;
     }
 
@@ -102,10 +157,11 @@ export class TwoStepController {
       await this.finish(reply, challenge, request, seen, pending, null);
       return;
     }
+    const mode = form.mode;
 
     let left: number | null = null;
     let ok = false;
-    if (form.mode === 'app') {
+    if (mode === 'app') {
       const seed = this.keys.open(totp.sealed, identityId);
       const step = matchStep(seed, form.code, Date.now(), totp.lastStep);
       ok = step !== null && (await this.identities.spendTotpStep(totp.id, step));
@@ -120,7 +176,7 @@ export class TwoStepController {
 
     if (!ok) {
       const after = await this.throttle.fail(key, seen.ip);
-      const credentialKind = form.mode === 'app' ? 'totp' : 'recovery_codes';
+      const credentialKind = mode === 'app' ? 'totp' : 'recovery_codes';
       await this.identities.event({
         kind: 'sign_in',
         outcome: 'failure',
@@ -142,12 +198,12 @@ export class TwoStepController {
             ...seen,
           });
         }
-        await this.screen(reply, challenge, request, pending, form.mode, { locked: after.until });
+        await this.screen(reply, challenge, request, pending, mode, { locked: after.until });
         return;
       }
-      await this.screen(reply, challenge, request, pending, form.mode, {
+      await this.screen(reply, challenge, request, pending, mode, {
         error:
-          form.mode === 'app'
+          mode === 'app'
             ? "That code isn't right. Enter the code your app shows now."
             : "That recovery code isn't right, or it was used already.",
         remaining: after.remaining <= WARN_AT ? after.remaining : null,
@@ -156,7 +212,17 @@ export class TwoStepController {
     }
 
     await this.throttle.succeed(key);
-    await this.finish(reply, challenge, request, seen, pending, form.mode, left);
+    await this.finish(
+      reply,
+      challenge,
+      request,
+      seen,
+      pending,
+      mode === 'app'
+        ? { method: 'authenticator', amr: 'otp' }
+        : { method: 'recovery_code', amr: 'otp' },
+      left,
+    );
   }
 
   /** The sign-in, finished at last: through SignIn, now with the second step in its methods. */
@@ -166,13 +232,14 @@ export class TwoStepController {
     request: LoginRequest,
     seen: Seen,
     pending: PendingTwoStep,
-    mode: Mode | null,
+    /** How the second step was passed, and its RFC 8176 method; null when it wasn't needed. */
+    step: { method: 'authenticator' | 'recovery_code' | 'passkey'; amr: string } | null,
     left: number | null = null,
   ): Promise<void> {
     await this.store.dropSignIn(challenge);
     reply.clearCookie(TWO_STEP_COOKIE, { path: '/login' });
     const a = pending.a;
-    if (mode === 'recovery') {
+    if (step?.method === 'recovery_code') {
       await this.identities.event({
         kind: 'recovery_code_used',
         outcome: 'success',
@@ -189,16 +256,13 @@ export class TwoStepController {
       challenge,
       request,
       seen,
-      mode === null
+      step === null
         ? a
         : {
             ...a,
-            // RFC 8176: a one-time code, and more than one factor.
-            amr: [...new Set([...a.amr, 'otp', 'mfa'])],
-            detail: {
-              ...a.detail,
-              second_step: mode === 'app' ? 'authenticator' : 'recovery_code',
-            },
+            // RFC 8176: a one-time code or a key, and more than one factor.
+            amr: [...new Set([...a.amr, step.amr, 'mfa'])],
+            detail: { ...a.detail, second_step: step.method },
           },
     );
   }
@@ -233,7 +297,10 @@ export class TwoStepController {
     mode: Mode,
     state: { error?: string; remaining?: number | null; locked?: Date } = {},
   ): Promise<void> {
-    const who = await this.identities.primaryIdentifier(pending.a.identityId);
+    const [who, passkeys] = await Promise.all([
+      this.identities.primaryIdentifier(pending.a.identityId),
+      this.identities.passkeys(pending.a.identityId),
+    ]);
     await render(
       reply,
       'two-step',
@@ -243,6 +310,7 @@ export class TwoStepController {
         identifier: who?.value ?? '',
         phone: who?.kind === 'phone',
         mode,
+        passkeys: passkeys.length > 0,
         error: state.error ?? null,
         remaining: state.remaining ?? null,
         locked: !!state.locked,

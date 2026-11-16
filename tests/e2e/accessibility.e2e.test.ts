@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Outbox } from '../../src/delivery/outbox';
 import { codeAt, fromBase32, stepAt } from '../../src/two-step/totp';
+import { Authenticator } from '../support/authenticator';
 import { startApp } from '../support/app';
 import { APP, HYDRA, authorizeUrl, browser, formFields, pkce, type Hop } from '../support/browser';
 import { closeMembers, createMember, type Member } from '../support/members';
@@ -183,6 +184,26 @@ beforeAll(async () => {
     }),
   );
   keep('account 2-step, on', await a.get(`${APP}/account/two-step`));
+
+  // Passkeys (account-plan.md part 5).
+  keep('account passkeys, none', await a.get(`${APP}/account/passkeys`));
+  keep('account add passkey', (acct = (await a.follow(`${APP}/account/passkeys/add`)).hop));
+  const options = JSON.parse((await a.get(`${APP}/account/passkeys/options`)).html);
+  keep(
+    'account add passkey, refused',
+    await a.post(`${APP}/account/passkeys/add`, { _csrf: token(), credential: '{}' }),
+  );
+  await a.post(`${APP}/account/passkeys/add`, {
+    _csrf: token(),
+    credential: new Authenticator().create(options),
+  });
+  keep('account passkeys', (acct = (await a.follow(`${APP}/account/passkeys`)).hop));
+  const passkeyId = /name="id" value="([^"]+)"/.exec(acct.html)![1]!;
+  keep('account rename passkey', await a.get(`${APP}/account/passkeys/rename?id=${passkeyId}`));
+  keep(
+    'account rename passkey, refused',
+    await a.post(`${APP}/account/passkeys/rename`, { _csrf: token(), id: passkeyId, name: ' ' }),
+  );
   ({ b, page } = await start());
   page = await post(b, page, { action: 'identify', identifier: holder.email });
   page = await post(b, page, { action: 'password', password: holder.password });
@@ -215,6 +236,12 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
     'account 2-step setup, wrong',
     'account recovery codes',
     'account 2-step, on',
+    'account passkeys, none',
+    'account add passkey',
+    'account add passkey, refused',
+    'account passkeys',
+    'account rename passkey',
+    'account rename passkey, refused',
     'password',
     'password, wrong',
     'reset',

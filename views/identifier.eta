@@ -18,18 +18,24 @@
     <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
     <div class="field">
       <label for="identifier"><%= it.phones ? 'Email or phone' : 'Email' %></label>
-      <input id="identifier" class="text" name="identifier" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus placeholder="<%= it.phones ? 'you@example.com or +44 7700 900123' : 'you@example.com' %>" value="<%= it.typed %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="identifier-error"<% } %>>
+      <input id="identifier" class="text" name="identifier" type="text" inputmode="email" autocomplete="username webauthn" autocapitalize="none" spellcheck="false" required autofocus placeholder="<%= it.phones ? 'you@example.com or +44 7700 900123' : 'you@example.com' %>" value="<%= it.typed %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="identifier-error"<% } %>>
 <% if (it.error) { %>
       <p id="identifier-error" class="error" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %></span></p>
 <% } %>
     </div>
   </form>
+<% if (!it.create) { %>
+<%~ include('./_passkey-form', { ...it, passkeyAction: '/login/passkey', passkeyOptions: '/login/passkey/options?login_challenge=' + encodeURIComponent(it.challenge), passkeyAutofill: true }) %>
+<% } %>
 <% if (it.upstreams.length) { %>
   <p class="or">or</p>
   <form method="post" action="/login" class="upstreams">
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
     <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
     <input type="hidden" name="action" value="upstream">
+<% if (!it.create) { %>
+    <button type="button" class="btn stroke wide" data-passkey-start="passkey" hidden><img src="<%= asset('icons/key.svg') %>" alt="" width="20" height="20">Sign in with a passkey</button>
+<% } %>
 <% it.upstreams.forEach(function (u) { %>
     <button type="submit" name="provider" value="<%= u.id %>" class="btn stroke wide"><img src="<%= asset('icons/' + (u.id) + '.svg') %>" alt="" width="20" height="20">Continue with <%= u.name %></button>
 <% }) %>
