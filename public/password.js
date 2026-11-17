@@ -121,6 +121,23 @@
     if (document.activeElement === code) wrap.classList.add('focused');
   }
 
+  // A copy button (data-copy names the element whose text it copies): shown only where the
+  // clipboard can be written, copying without the spaces that group the text for reading.
+  document.querySelectorAll('[data-copy]').forEach(function (button) {
+    var source = document.getElementById(button.getAttribute('data-copy'));
+    var status = button.parentNode.querySelector('[data-copied]');
+    if (!source || !navigator.clipboard || !window.isSecureContext) return;
+    button.hidden = false;
+    button.addEventListener('click', function () {
+      navigator.clipboard.writeText(source.textContent.replace(/\s+/g, '')).then(
+        function () {
+          if (status) status.textContent = 'Copied';
+        },
+        function () {},
+      );
+    });
+  });
+
   var rules = document.getElementById('rules');
   var password = document.getElementById('password');
   if (!rules || !password || password.getAttribute('autocomplete') !== 'new-password') return;

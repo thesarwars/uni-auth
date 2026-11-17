@@ -1091,7 +1091,8 @@ export class AccountController {
       type: 'svg',
       errorCorrectionLevel: 'M',
       margin: 0,
-      color: { dark: '#000000', light: '#ffffff' },
+      // Light modules see-through: the tile behind them (.qr) is the quiet zone and background.
+      color: { dark: '#000000', light: '#0000' },
     });
     await this.render(
       reply,

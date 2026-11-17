@@ -1299,81 +1299,74 @@ input.text.mono::placeholder {
 .panel-head.bare {
   padding: 0;
 }
-.steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  counter-reset: step;
+/* Setting up the authenticator app: the QR code beside the three steps. */
+.setup {
   display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-.steps > li {
-  counter-increment: step;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.steps h2 {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
-}
-.steps h2::before {
-  content: counter(step);
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--action-primary);
-  color: var(--text-on-action);
-  font-size: 13px;
-  line-height: 28px;
-  text-align: center;
-}
-.steps > li > form,
-.steps > li > .qr-row {
-  padding-left: 40px;
-}
-.qr-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
+  align-items: flex-start;
+  gap: 32px;
 }
 .qr {
   flex: none;
-  width: 168px;
-  height: 168px;
-  padding: 12px;
-  border: 1px solid var(--border-hairline);
-  border-radius: 16px;
-  background: #ffffff;
+  width: 176px;
+  height: 176px;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--bg-page);
 }
 .qr svg {
   display: block;
   width: 100%;
   height: 100%;
 }
-.qr-key {
+.setup-steps {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 16px;
+}
+.setup-steps > p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+}
+.setup-steps > form {
+  margin: 0;
 }
 .key {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  line-height: 24px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  overflow-wrap: anywhere;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--bg-page);
+}
+.key-text {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
   user-select: all;
+}
+.key .copy {
+  flex: none;
+  display: flex;
+  margin: -4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.key .copy[hidden] {
+  display: none;
+}
+.key .copy:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 .codes {
   list-style: none;
@@ -1393,13 +1386,9 @@ input.text.mono::placeholder {
   user-select: all;
 }
 @media (max-width: 600px) {
-  .qr-row {
+  .setup {
     flex-direction: column;
-    align-items: flex-start;
-  }
-  .steps > li > form,
-  .steps > li > .qr-row {
-    padding-left: 0;
+    gap: 24px;
   }
   .codes {
     gap: 10px 12px;
