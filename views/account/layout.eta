@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title><%= it.title %> · <%= it.providerName %> Account</title>
-  <link rel="icon" type="image/svg+xml" href="<%= asset('entity-auth.svg') %>">
+  <link rel="icon" type="image/svg+xml" href="<%= asset('favicon.svg') %>">
   <link rel="icon" type="image/png" sizes="32x32" href="<%= asset('entity-auth-32.png') %>">
   <link rel="apple-touch-icon" href="<%= asset('entity-auth-180.png') %>">
   <link rel="preload" href="<%= asset('geist.woff2') %>" as="font" type="font/woff2" crossorigin>
@@ -15,9 +15,8 @@
 <% if (it.nav) { %>
 <div class="acct">
   <header class="acct-top">
-    <a class="acct-brand" href="/account">
-      <span class="name"><img src="<%= asset('entity-auth.svg') %>" alt="" width="32" height="32"><%= it.providerName %></span>
-      <span class="area">Account</span>
+    <a class="acct-brand" href="/account" aria-label="<%= it.providerName %> Account">
+      <img src="<%= asset('entity-logo.svg') %>" alt="" width="132" height="40">
     </a>
     <div class="acct-tools">
 <% if (it.help) { %>
