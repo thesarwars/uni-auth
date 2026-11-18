@@ -1454,3 +1454,68 @@ input.text.mono::placeholder {
     align-items: stretch;
   }
 }
+
+/* Data & privacy and Linked apps (account-plan.md part 6) */
+.app-tile {
+  flex: none;
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 9.3px;
+}
+.row .tile[aria-hidden] {
+  font-size: 16px;
+  font-weight: 600;
+}
+.btn.danger:hover {
+  background: var(--status-error);
+  filter: brightness(0.92);
+}
+/* "Delete your account?": a modal dialog where the browser has one (password.js), and the same
+   question as a page without script (privacy-delete.eta). */
+dialog.confirm {
+  width: 480px;
+  max-width: calc(100% - 32px);
+  padding: 32px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 28px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+dialog.confirm[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+dialog.confirm::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+dialog.confirm h2 {
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.24px;
+}
+dialog.confirm p,
+.confirm-panel p {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+dialog.confirm .actions,
+.confirm-panel .actions {
+  padding-top: 8px;
+}
+@media (max-width: 600px) {
+  dialog.confirm {
+    padding: 24px;
+  }
+}
+.panel.pad > form.actions {
+  flex-direction: row;
+  gap: 12px;
+}
+.confirm-panel .btn.ghost,
+dialog.confirm .btn.ghost {
+  border: 1.5px solid var(--text-primary);
+}

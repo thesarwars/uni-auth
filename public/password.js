@@ -29,7 +29,9 @@
   // Send each form once. A second copy of the same form (a double click, Enter then a click) used
   // to reach the server after the first had already spent the code, and read as "expired". The
   // server also answers a repeat with where the first went (SignIn.finished); this saves the trip.
-  document.querySelectorAll('form').forEach(function (form) {
+  // A form that answers with a file (data-download) leaves the page where it is: it may be sent
+  // again, so it is left alone.
+  document.querySelectorAll('form:not([data-download])').forEach(function (form) {
     form.addEventListener('submit', function (event) {
       if (form.getAttribute('data-sending')) {
         event.preventDefault();
@@ -47,6 +49,26 @@
       }
     });
   });
+  // A link with data-dialog="<id>" opens that <dialog> instead of its page, where the browser
+  // can; the page is the same question without script. [data-dialog-close] closes it again.
+  document.querySelectorAll('a[data-dialog]').forEach(function (link) {
+    var dialog = document.getElementById(link.getAttribute('data-dialog'));
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      dialog.showModal();
+    });
+    dialog.querySelectorAll('[data-dialog-close]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        dialog.close();
+      });
+    });
+    // A click on the backdrop (the dialog itself, outside its content box) closes it too.
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+  });
+
   // Back to a page the browser kept: its forms can be sent again.
   window.addEventListener('pageshow', function (event) {
     if (!event.persisted) return;

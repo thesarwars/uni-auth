@@ -29,6 +29,10 @@ import { base32, grouped, matchStep, newSeed, otpauthUri } from '../two-step/tot
 import { TwoStepStore } from '../two-step/two-step.store';
 import { Passkeys } from '../passkeys/passkeys.service';
 import { activitiesView, describeDevice, devicesView } from './device';
+import { DataExport } from './data-export';
+import { HydraAdmin } from '../hydra/hydra-admin.service';
+import { RedisService } from '../redis/redis.service';
+import { Upstream, PROVIDERS, type Provider } from '../upstream/upstream.service';
 
 const SESSION_COOKIE = 'ea_account';
 const STATE_COOKIE = 'ea_account_state';
@@ -66,6 +70,20 @@ const DONE: Record<string, string> = {
   passkey_added: 'Passkey added. You can now sign in with it.',
   passkey_renamed: 'Passkey renamed.',
   passkey_removed: 'Passkey removed.',
+  access_removed: 'Access removed. The app will ask you to sign in again next time.',
+  unlinked: 'Unlinked. You can no longer sign in with that account.',
+};
+
+/** Downloads of one's data an hour: plenty for a member, few enough to make scraping slow. */
+const DOWNLOADS_PER_HOUR = 5;
+
+/** What a member gave an app, in plain words, by OpenID Connect scope. Others aren't shown. */
+const SCOPE_WORDS: Record<string, string> = {
+  openid: 'Know it’s you, by your Entity account ID',
+  profile: 'See your name and language',
+  email: 'See your email address',
+  phone: 'See your phone number',
+  offline_access: 'Keep you signed in',
 };
 
 const ReturnTo = z
@@ -90,6 +108,8 @@ const PasswordForm = z.object({ password: z.string().max(1024), confirm: z.strin
 const TotpForm = z.object({ code: z.string().max(20) });
 const PasskeyForm = z.object({ credential: z.string().min(2).max(40_000) });
 const RenameForm = z.object({ id: z.string().uuid(), name: z.string().max(400) });
+const AppForm = z.object({ id: z.string().min(1).max(255) });
+const UnlinkForm = z.object({ provider: z.enum(['google', 'apple']) });
 
 /**
  * The account centre (account-plan.md): a member's own entity-auth account - personal info,
@@ -114,6 +134,10 @@ export class AccountController {
     private readonly mfa: MfaKeys,
     private readonly twoStepStore: TwoStepStore,
     private readonly passkeys: Passkeys,
+    private readonly dataExport: DataExport,
+    private readonly redis: RedisService,
+    private readonly upstream: Upstream,
+    private readonly hydra: HydraAdmin,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -1126,6 +1150,283 @@ export class AccountController {
   }
 
   // ---------------------------------------------------------------------------------------
+  // Linked apps (account-plan.md part 6): Google and Apple, and the apps using Entity
+  // ---------------------------------------------------------------------------------------
+
+  @Get('apps')
+  async linkedApps(
+    @Query('done') done: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/apps');
+    if (!s) return;
+    const [linked, apps] = await Promise.all([
+      this.identities.linkedProviders(s.sub),
+      this.connectedApps(s.sub),
+    ]);
+    // Google and Apple: the linked ones, and the others this deployment offers.
+    const providers = PROVIDERS.map((p) => {
+      const link = linked.find((l) => l.kind === providerKind(p));
+      return { id: p, name: providerLabel(p), linked: !!link, email: link?.email ?? null };
+    }).filter((p) => p.linked || this.upstream.configured(p.id));
+    await this.render(reply, s, 'account/apps', 'Linked apps', 'apps', {
+      providers,
+      apps,
+      appsUnavailable: apps === null,
+      done: flash(done),
+    });
+  }
+
+  /** One app: what it can see, and removing its access. */
+  @Get('apps/app')
+  async linkedApp(
+    @Query('id') id: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/apps');
+    if (!s) return;
+    const app =
+      typeof id === 'string' ? (await this.connectedApps(s.sub))?.find((a) => a.key === id) : null;
+    if (!app) {
+      await redirect(reply, '/account/apps');
+      return;
+    }
+    await this.render(reply, s, 'account/app', app.name, 'apps', {
+      app,
+      access: app.scopes.map((sc) => SCOPE_WORDS[sc]).filter(Boolean),
+    });
+  }
+
+  /**
+   * Withdraws an app's access: Hydra revokes its consents and every token it holds for the
+   * member. Other apps stay signed in. Like signing a device out, it only ever helps, so it needs
+   * no fresh sign-in.
+   */
+  @Post('apps/remove')
+  async removeApp(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/apps');
+    if (!s) return;
+    const { id } = parse(AppForm, body);
+    const app = (await this.connectedApps(s.sub))?.find((a) => a.key === id);
+    if (!app) {
+      await redirect(reply, '/account/apps');
+      return;
+    }
+    for (const clientId of app.clientIds) {
+      await this.hydra.revokeConsent(s.sub, clientId);
+      await this.identities.event({
+        ...this.seen(req, s),
+        kind: 'consent_revoked',
+        outcome: 'success',
+        detail: { client: clientId, app: app.name },
+      });
+    }
+    await redirect(reply, '/account/apps?done=access_removed');
+  }
+
+  /**
+   * Unlinks Google or Apple. The member can still sign in: every identity keeps a verified
+   * address for a code (0005), and usually a password or passkey too.
+   */
+  @Post('apps/unlink')
+  async unlinkProvider(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/apps', { fresh: true });
+    if (!s) return;
+    const { provider } = parse(UnlinkForm, body);
+    const kind = providerKind(provider);
+    const ended = await this.db.tx(async (db) => {
+      const sids = await this.identities.unlinkProvider(db, s.sub, kind, s.sid);
+      if (sids) {
+        await this.identities.event(
+          {
+            ...this.seen(req, s),
+            kind: 'credential_revoked',
+            outcome: 'success',
+            credentialKind: kind,
+          },
+          db,
+        );
+      }
+      return sids;
+    });
+    if (!ended) {
+      await redirect(reply, '/account/apps');
+      return;
+    }
+    await this.sessionEnder.endAtHydra(ended);
+    const name = providerLabel(provider);
+    await this.notify(s.sub, `${name} was unlinked from your account`, [
+      `Your ${name} account was unlinked from your ${env.PROVIDER_NAME} account. It can no longer be used to sign in.`,
+      ...(ended.length
+        ? [
+            `${ended.length === 1 ? '1 device' : `${ended.length} devices`} signed in with ${name} ${ended.length === 1 ? 'was' : 'were'} signed out.`,
+          ]
+        : []),
+    ]);
+    await redirect(reply, '/account/apps?done=unlinked');
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Data & privacy (account-plan.md part 6)
+  // ---------------------------------------------------------------------------------------
+
+  @Get('privacy')
+  async privacy(
+    @Query('done') done: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/privacy');
+    if (!s) return;
+    await this.privacyPage(reply, s, { done: flash(done) });
+  }
+
+  /**
+   * "Confirm it's you" comes back here before a download: the button that starts it, so the
+   * file arrives on a page the member is looking at rather than at the end of a redirect.
+   */
+  @Get('privacy/download')
+  async downloadPage(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/privacy/download', { fresh: true });
+    if (!s) return;
+    await this.render(reply, s, 'account/privacy-download', 'Download your data', 'privacy', {});
+  }
+
+  /**
+   * A copy of everything uni-auth holds about the member, as JSON, straight to the browser.
+   * Nothing is stored. The journal records it and the member is told by email, so a download by
+   * someone else on a signed-in device doesn't go unnoticed.
+   */
+  @Post('privacy/download')
+  async download(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/privacy/download', { fresh: true });
+    if (!s) return;
+    const key = `uni-auth:export:${s.sub}`;
+    const count = await this.redis.client.incr(key);
+    if (count === 1) await this.redis.client.expire(key, 3600);
+    if (count > DOWNLOADS_PER_HOUR) {
+      await this.privacyPage(
+        reply,
+        s,
+        {
+          error: `You can download your data ${DOWNLOADS_PER_HOUR} times an hour. Try again later.`,
+        },
+        429,
+      );
+      return;
+    }
+    const now = new Date();
+    const data = await this.dataExport.build(s.sub, now);
+    await this.identities.event({
+      ...this.seen(req, s),
+      kind: 'export_downloaded',
+      outcome: 'success',
+    });
+    await this.notify(s.sub, 'A copy of your account data was downloaded', [
+      `A copy of your ${env.PROVIDER_NAME} account data was downloaded from your account.`,
+      "If this wasn't you, change your password and check your devices in your account now.",
+    ]);
+    const name = `${env.PROVIDER_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-account-data-${now.toISOString().slice(0, 10)}.json`;
+    await reply
+      .status(200)
+      .header('content-type', 'application/json; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${name}"`)
+      .header('cache-control', 'no-store')
+      .send(`${JSON.stringify(data, null, 2)}\n`);
+  }
+
+  /** Delete account, as a page: where "Confirm it's you" returns, and the dialog without script. */
+  @Get('privacy/delete')
+  async deletePage(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/privacy/delete', { fresh: true });
+    if (!s) return;
+    await this.render(reply, s, 'account/privacy-delete', 'Delete your account', 'privacy', {
+      graceDays: GRACE_DAYS,
+    });
+  }
+
+  /**
+   * Schedules the account's deletion 14 days on (OQ-AC-2) and signs the member out of every
+   * device and app. Signing in again before then cancels it (SignIn); after, AccountDeletions
+   * erases the identity and GSN is told.
+   */
+  @Post('privacy/delete')
+  async deleteAccount(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/privacy/delete', { fresh: true });
+    if (!s) return;
+    // Told before the sessions end: the address is still on the account either way.
+    const { scheduledFor, ended } = await this.db.tx(async (db) => {
+      const done = await this.identities.requestDeletion(db, s.sub);
+      await this.identities.event(
+        {
+          ...this.seen(req, s),
+          kind: 'deletion_requested',
+          outcome: 'success',
+          detail: { scheduled_for: done.scheduledFor.toISOString() },
+        },
+        db,
+      );
+      return done;
+    });
+    const on = longDate(scheduledFor);
+    await this.notify(s.sub, 'Your account will be deleted', [
+      `You asked us to delete your ${env.PROVIDER_NAME} account. It will be deleted on ${on}, and you've been signed out of every app that uses it.`,
+      `Changed your mind? Sign in to any app with your ${env.PROVIDER_NAME} account before ${on} and the deletion is cancelled.`,
+      "If you didn't ask for this, sign in now to keep your account, then change your password.",
+    ]);
+    await this.sessionEnder.endAtHydra(ended);
+    await this.sessions.end(s.id);
+    reply.clearCookie(SESSION_COOKIE, { path: '/account' });
+    await render(reply, 'account/signed-out', 'Account deletion', {
+      heading: 'Your account will be deleted',
+      detail: `It will be deleted on ${on}, and you’ve been signed out everywhere. Changed your mind? Sign in before then to keep it.`,
+    });
+  }
+
+  private async privacyPage(
+    reply: FastifyReply,
+    s: AccountSession,
+    state: { done?: string | null; error?: string },
+    status = 200,
+  ): Promise<void> {
+    await this.render(
+      reply,
+      s,
+      'account/privacy',
+      'Data & privacy',
+      'privacy',
+      {
+        apps: await this.apps.list(),
+        privacyUrl: env.PRIVACY_URL || null,
+        termsUrl: env.TERMS_URL || null,
+        graceDays: GRACE_DAYS,
+        done: state.done ?? null,
+        error: state.error ?? null,
+      },
+      status,
+    );
+  }
+
+  /** The apps the member uses, or null when Hydra can't be asked: the page says so. */
+  private async connectedApps(subject: string) {
+    try {
+      return await this.apps.connected(subject);
+    } catch {
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------------------
 
@@ -1401,6 +1702,22 @@ const flowOf = (s: AccountSession): string => `account:${s.id}`;
 const passkeyFlow = (s: AccountSession): string => `account-passkey:${s.id}`;
 
 const phonesAccepted = (): boolean => env.WHATSAPP_DELIVERY !== 'off';
+
+/** How long a deletion waits for the member to change their mind (0012; OQ-AC-2). */
+const GRACE_DAYS = 14;
+
+const providerKind = (p: Provider): 'oauth_google' | 'oauth_apple' =>
+  p === 'google' ? 'oauth_google' : 'oauth_apple';
+const providerLabel = (p: Provider): string => (p === 'google' ? 'Google' : 'Apple');
+
+/** "2 December 2026", in UK time. */
+const longDate = (d: Date): string =>
+  d.toLocaleDateString('en-GB', {
+    timeZone: 'Europe/London',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
 const flash = (done: unknown): string | null =>
   typeof done === 'string' && Object.hasOwn(DONE, done) ? DONE[done]! : null;
