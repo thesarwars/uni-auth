@@ -13,7 +13,8 @@
   "metadata": {
     "first_party": true,
     "product": "gsn",
-    "initiate_login_uri": "${GSN_WEB_ORIGIN}/login"
+    "initiate_login_uri": "${GSN_WEB_ORIGIN}/login",
+    "data_summary": "Profile, orders, bookings and posts"
   },
   "backchannel_logout_uri": "${GSN_API_URL}/v1/uni-auth/backchannel-logout",
   "backchannel_logout_session_required": true
