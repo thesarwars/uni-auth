@@ -93,6 +93,19 @@ const Env = z.object({
     .int()
     .min(100)
     .default(10 * 60 * 1000),
+  /**
+   * Account recovery without a second factor (account-plan.md part 7): where the product is
+   * asked whether an administrator must approve a request, and later for the decision. Called
+   * with a uni-auth-service token (scope identity:recovery) for IDENTITY_NOTICE_AUDIENCE. By
+   * default beside IDENTITY_NOTICE_URL: .../uni-auth/recovery-requests.
+   */
+  RECOVERY_REVIEW_URL: z.string().url().optional(),
+  /** How often requests are registered, decisions fetched and due requests completed. */
+  MFA_RECOVERY_POLL_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .default(5 * 60 * 1000),
 
   /**
    * The provider's name on the screens that are about the provider rather than a client:

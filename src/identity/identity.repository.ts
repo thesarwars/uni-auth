@@ -78,7 +78,11 @@ export interface AuthEvent {
     | 'export_downloaded'
     | 'deletion_requested'
     | 'deletion_cancelled'
-    | 'consent_revoked';
+    | 'consent_revoked'
+    | 'mfa_recovery_requested'
+    | 'mfa_recovery_cancelled'
+    | 'mfa_recovery_rejected'
+    | 'mfa_recovery_completed';
   outcome: 'success' | 'failure';
   identityId?: string | null;
   identifier?: Identifier | null;

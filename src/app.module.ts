@@ -37,6 +37,11 @@ import { SignupStore } from './identity/signup.store';
 import { RedisService } from './redis/redis.service';
 import { Throttle } from './throttle/throttle.service';
 import { Upstream } from './upstream/upstream.service';
+import { MfaRecoveries } from './recovery/mfa-recoveries';
+import { RecoveryController } from './recovery/recovery.controller';
+import { RecoveryMail } from './recovery/recovery-mail';
+import { RecoveryReview } from './recovery/recovery-review';
+import { RecoveryRepository } from './recovery/recovery.repository';
 
 @Module({
   controllers: [
@@ -50,6 +55,7 @@ import { Upstream } from './upstream/upstream.service';
     AccountController,
     TwoStepController,
     PasskeySignInController,
+    RecoveryController,
   ],
   providers: [
     HydraAdmin,
@@ -77,6 +83,10 @@ import { Upstream } from './upstream/upstream.service';
     MfaKeys,
     TwoStepStore,
     Passkeys,
+    RecoveryRepository,
+    RecoveryReview,
+    RecoveryMail,
+    MfaRecoveries,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

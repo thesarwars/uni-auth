@@ -1,0 +1,18 @@
+<% layout('./layout') %>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title"><%= it.fresh ? 'Request sent' : 'You’ve already asked' %></h1>
+</div>
+<div class="form">
+<% if (!it.fresh) { %>
+  <p class="text-block">You asked on <%= it.requestedOn %> for 2-step verification to be removed.</p>
+<% } else { %>
+  <p class="text-block">We’ve emailed every address on your account about it, with a link to cancel.</p>
+<% } %>
+<% if (it.review) { %>
+  <p class="text-block">Our team will check the request. If it’s approved and nobody cancels it, 2-step verification is removed on <strong><%= it.eligibleOn %></strong> at the earliest. We’ll email you either way.</p>
+<% } else { %>
+  <p class="text-block">If nobody cancels it, 2-step verification is removed on <strong><%= it.eligibleOn %></strong>. After that, sign in with your password alone.</p>
+<% } %>
+  <p class="text-block">If you find your phone or a recovery code before then, just sign in as usual. That cancels the request.</p>
+</div>

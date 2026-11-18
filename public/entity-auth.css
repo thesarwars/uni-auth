@@ -1519,3 +1519,12 @@ dialog.confirm .actions,
 dialog.confirm .btn.ghost {
   border: 1.5px solid var(--text-primary);
 }
+
+/* Account recovery (account-plan.md part 7): what happens next, as a short list. */
+.bullets {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

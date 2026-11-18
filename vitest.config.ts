@@ -38,6 +38,10 @@ const defaults: Record<string, string> = {
   IDENTITY_NOTICE_POLL_MS: '3600000',
   // Run by tests/e2e/data-privacy.e2e.test.ts itself, with a date 15 days on.
   ACCOUNT_DELETION_POLL_MS: '3600000',
+  // GSN's recovery review is played by tests/e2e/mfa-recovery.e2e.test.ts, which runs the job
+  // itself, with dates 7 days on.
+  RECOVERY_REVIEW_URL: 'http://127.0.0.1:4781/recovery-requests',
+  MFA_RECOVERY_POLL_MS: '3600000',
   // The identity database as the application's own role (scripts/db-dev-roles.mjs).
   DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };

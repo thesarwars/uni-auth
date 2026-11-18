@@ -273,6 +273,14 @@ export function activityView(
         return { icon: 'shield-20', title: 'Account created' };
       case 'export_downloaded':
         return { icon: 'download', title: 'Copy of your data downloaded' };
+      case 'mfa_recovery_requested':
+        return { icon: 'shield-20', title: 'Asked to remove 2-step verification' };
+      case 'mfa_recovery_cancelled':
+        return { icon: 'shield-20', title: 'Request to remove 2-step verification cancelled' };
+      case 'mfa_recovery_rejected':
+        return { icon: 'shield-20', title: 'Request to remove 2-step verification refused' };
+      case 'mfa_recovery_completed':
+        return { icon: 'shield-20', title: '2-step verification removed by account recovery' };
       case 'deletion_requested':
         return { icon: 'delete', title: 'Account deletion requested' };
       case 'deletion_cancelled':

@@ -4,16 +4,21 @@ import { env } from '../config/env';
 
 const TokenResponse = z.object({ access_token: z.string(), expires_in: z.number() });
 
+/** The scopes the uni-auth-service client holds (deploy/hydra/clients/uni-auth-service.json). */
+export type ServiceScope = 'identity:lifecycle' | 'identity:recovery';
+
 /**
- * A uni-auth-service access token (client credentials, scope identity:lifecycle), for calling a
- * product's internal API. Kept until a minute before it expires.
+ * A uni-auth-service access token (client credentials), for calling a product's internal API:
+ * one per scope, so each call carries only what it needs. Kept until a minute before it expires.
  */
 @Injectable()
 export class ServiceToken {
-  private cached: { token: string; until: number } | null = null;
+  private readonly cached = new Map<string, { token: string; until: number }>();
 
-  async get(audience: string): Promise<string> {
-    if (this.cached && this.cached.until > Date.now()) return this.cached.token;
+  async get(audience: string, scope: ServiceScope = 'identity:lifecycle'): Promise<string> {
+    const key = `${audience} ${scope}`;
+    const hit = this.cached.get(key);
+    if (hit && hit.until > Date.now()) return hit.token;
     const res = await fetch(`${env.HYDRA_PUBLIC_URL}/oauth2/token`, {
       method: 'POST',
       headers: {
@@ -22,19 +27,19 @@ export class ServiceToken {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: 'identity:lifecycle',
+        scope,
         audience,
       }).toString(),
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`service token: Hydra answered ${res.status}`);
     const t = TokenResponse.parse(await res.json());
-    this.cached = { token: t.access_token, until: Date.now() + (t.expires_in - 60) * 1000 };
+    this.cached.set(key, { token: t.access_token, until: Date.now() + (t.expires_in - 60) * 1000 });
     return t.access_token;
   }
 
-  /** Forgets the token, after a product refused it. */
+  /** Forgets the tokens, after a product refused one. */
   drop(): void {
-    this.cached = null;
+    this.cached.clear();
   }
 }
