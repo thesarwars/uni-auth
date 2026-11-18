@@ -55,6 +55,7 @@
 <%~ include('./_passkey-form', { ...it, passkeyAction: '/login/two-step', passkeyOptions: '/login/two-step/passkey?login_challenge=' + encodeURIComponent(it.challenge), passkeyMode: 'passkey' }) %>
   <button type="button" class="link" data-passkey-start="passkey" hidden>Use a passkey instead</button>
 <% } %>
+  <a class="link" href="/login/two-step/help?login_challenge=<%= encodeURIComponent(it.challenge) %>">Can’t use any of these?</a>
   <div class="actions">
     <a class="btn ghost" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Back</a>
     <button type="submit" form="verify" class="btn">Verify</button>

@@ -78,19 +78,30 @@ export class EmailSender {
    * sent, never optional. Best effort: the change has already happened, so a failed send is
    * logged, not thrown.
    */
-  async sendNotice(to: string, subject: string, lines: string[]): Promise<void> {
+  async sendNotice(
+    to: string,
+    subject: string,
+    lines: string[],
+    /** In place of "Review your account": a link the notice is about, such as a cancel link. */
+    action?: { label: string; href: string },
+  ): Promise<void> {
     const P = env.PROVIDER_NAME;
     const footer =
       `If this wasn't you, sign in to your ${P} account, change your password ` +
       `and check your email addresses and phone numbers.`;
-    const text = [...lines, '', footer].join('\n');
+    const text = [
+      ...lines,
+      ...(action ? ['', `${action.label}: ${action.href}`] : []),
+      '',
+      footer,
+    ].join('\n');
     const html = renderEmail({
       provider: P,
       preview: lines[0] ?? subject,
       title: subject,
       intro: lines[0] ?? '',
       lines: lines.slice(1),
-      button: { label: 'Review your account', href: `${env.LOGIN_PUBLIC_URL}/account` },
+      button: action ?? { label: 'Review your account', href: `${env.LOGIN_PUBLIC_URL}/account` },
       note: footer,
       footer: `Security notices about your ${P} account are always sent and can't be turned off.`,
     });

@@ -1,0 +1,34 @@
+<% layout('./layout') %>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Can’t use 2-step verification?</h1>
+<% if (it.identifier) { %>
+<%~ include('./_pill', it) %>
+<% } %>
+</div>
+<div class="form">
+<% if (it.error) { %>
+  <p class="text-block" role="alert"><%= it.error %></p>
+<% } %>
+<% if (!it.password) { %>
+  <p class="text-block">To ask for 2-step verification to be removed, sign in with your password first. Go back and choose your password instead of a code.</p>
+  <div class="actions">
+    <a class="btn" href="/login?login_challenge=<%= encodeURIComponent(it.challenge) %>">Back to sign in</a>
+  </div>
+<% } else { %>
+  <p class="text-block">If you can’t use your authenticator app, a passkey or any of your recovery codes, you can ask for 2-step verification to be removed from your account.</p>
+  <ul class="text-block bullets">
+    <li>We email every address on your account straight away, with a link to cancel.</li>
+    <li>After 7 days, if nobody cancels, 2-step verification is removed and your password alone signs you in.</li>
+    <li>For some accounts, our team also checks the request before it goes ahead.</li>
+  </ul>
+  <form id="ask" method="post" action="/login/two-step/help">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+  </form>
+  <div class="actions">
+    <a class="btn ghost" href="/login/two-step?login_challenge=<%= encodeURIComponent(it.challenge) %>">Back</a>
+    <button type="submit" form="ask" class="btn">Ask to remove it</button>
+  </div>
+<% } %>
+</div>

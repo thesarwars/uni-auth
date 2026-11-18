@@ -1,0 +1,9 @@
+<% layout('./layout') %>
+<div class="intro">
+<%~ include('./_logo', it) %>
+  <h1 id="title">Request cancelled</h1>
+</div>
+<div class="form">
+  <p class="text-block">2-step verification stays on, and nothing on your account has changed.</p>
+  <p class="text-block">If you didn’t make this request, change your password now: whoever asked knows it.</p>
+</div>

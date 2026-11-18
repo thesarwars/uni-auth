@@ -222,6 +222,19 @@ beforeAll(async () => {
     });
   keep('two-step, wrong', await step('app'));
   keep('two-step, recovery code', await step('recovery'));
+  // Account recovery (account-plan.md part 7): the help page, and a cancel link's two answers.
+  keep(
+    'two-step help',
+    await b.get(
+      `${APP}/login/two-step/help?login_challenge=${encodeURIComponent(
+        /name="login_challenge" value="([^"]+)"/.exec(page.html)![1]!,
+      )}`,
+    ),
+  );
+  keep(
+    'recovery cancel, unknown link',
+    await browser().get(`${APP}/recovery/cancel?token=${'A'.repeat(43)}`),
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -236,6 +249,8 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
     'two-step',
     'two-step, wrong',
     'two-step, recovery code',
+    'two-step help',
+    'recovery cancel, unknown link',
     'account 2-step, off',
     'account 2-step setup',
     'account 2-step setup, wrong',

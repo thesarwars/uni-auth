@@ -1,0 +1,29 @@
+<% layout('./layout') %>
+<div class="intro">
+<%~ include('./_logo', it) %>
+<% if (it.state === 'pending') { %>
+  <h1 id="title">Cancel the request?</h1>
+<% } else { %>
+  <h1 id="title">Nothing to cancel</h1>
+<% } %>
+</div>
+<div class="form">
+<% if (it.state === 'pending') { %>
+  <p class="text-block">On <%= it.requestedOn %>, someone asked for 2-step verification to be removed from your account. Cancel it, and 2-step verification stays on.</p>
+  <form id="cancel" method="post" action="/recovery/cancel">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="token" value="<%= it.token %>">
+  </form>
+  <div class="actions">
+    <button type="submit" form="cancel" class="btn">Cancel the request</button>
+  </div>
+<% } else if (it.state === 'cancelled') { %>
+  <p class="text-block">This request was already cancelled. 2-step verification is still on.</p>
+<% } else if (it.state === 'rejected') { %>
+  <p class="text-block">This request wasn’t approved. 2-step verification is still on.</p>
+<% } else if (it.state === 'completed') { %>
+  <p class="text-block">This request has already gone ahead, and 2-step verification was removed. If you didn’t ask for it, sign in, change your password and turn 2-step verification on again.</p>
+<% } else { %>
+  <p class="text-block">This link isn’t valid. Check you used the whole link from the email.</p>
+<% } %>
+</div>

@@ -11,6 +11,8 @@ import { HydraAdmin, type LoginRequest } from '../hydra/hydra-admin.service';
 import { IdentityRepository, type CredentialKind } from '../identity/identity.repository';
 import { RedisService } from '../redis/redis.service';
 import { TwoStepStore } from '../two-step/two-step.store';
+import { RecoveryMail } from '../recovery/recovery-mail';
+import { RecoveryRepository, type Recovery } from '../recovery/recovery.repository';
 
 /** Binds a sign-in waiting for its second step to the browser that passed the first. */
 export const TWO_STEP_COOKIE = 'ea_two_step';
@@ -48,6 +50,8 @@ export class SignIn {
     private readonly geo: GeoIp,
     private readonly email: EmailSender,
     private readonly twoStep: TwoStepStore,
+    private readonly recoveries: RecoveryRepository,
+    private readonly recoveryMail: RecoveryMail,
   ) {}
 
   /**
@@ -108,6 +112,7 @@ export class SignIn {
     const at = this.geo.locate(seen.ip);
     let newDevice = false;
     let undeleted: Date | null = null;
+    let recalled: Recovery | null = null;
     const opened = await this.db.tx(async (db) => {
       newDevice = await this.identities.isNewDevice(db, a.identityId, sid, label, at.country);
       const sessionId = await this.identities.openSession(db, {
@@ -154,6 +159,25 @@ export class SignIn {
           db,
         );
       }
+      // Signing in with a 2-step method shows the member still has one (account-plan.md part
+      // 7): a request to remove 2-step verification is no longer needed, whoever made it.
+      if (twoStepDone) {
+        recalled = await this.recoveries.cancelFor(db, a.identityId, 'sign_in');
+        if (recalled) {
+          await this.identities.event(
+            {
+              kind: 'mfa_recovery_cancelled',
+              outcome: 'success',
+              identityId: a.identityId,
+              clientId: request.client.client_id,
+              authSessionId: sessionId,
+              detail: { request: recalled.id, by: 'sign_in' },
+              ...seen,
+            },
+            db,
+          );
+        }
+      }
       return sessionId;
     });
 
@@ -183,6 +207,7 @@ export class SignIn {
     await this.redis.client.set(doneKey(challenge), to, 'EX', DONE_SECONDS);
     if (newDevice) await this.alertNewDevice(a.identityId, device, at);
     if (undeleted) await this.tellUndeleted(a.identityId);
+    if (recalled) void this.recoveryMail.cancelled(recalled, 'sign_in');
     return to;
   }
 
