@@ -12,7 +12,8 @@
   "skip_consent": true,
   "metadata": {
     "first_party": true,
-    "product": "gsn"
+    "product": "gsn",
+    "data_summary": "Profile, orders, bookings and posts"
   },
   "backchannel_logout_uri": "http://host.docker.internal:4041/v1/uni-auth/backchannel-logout",
   "backchannel_logout_session_required": true

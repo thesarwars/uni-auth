@@ -1,0 +1,49 @@
+<% layout('./layout') %>
+<% var day = function (d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric', timeZone: 'Europe/London' }); }; %>
+<div class="page-head">
+  <h1 id="title">Linked apps</h1>
+</div>
+<% if (it.providers.length) { %>
+<section class="panel" aria-labelledby="h-with">
+  <div class="panel-head">
+    <h2 id="h-with">Sign in with</h2>
+    <p>Accounts you can use to sign in to <%= it.providerName %>.</p>
+  </div>
+  <ul class="rows">
+<% it.providers.forEach(function (p) { %>
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/' + p.id + '.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= p.name %></span><span class="s"><%= p.linked ? (p.email || 'Linked') : 'Not linked. Sign in with ' + p.name + ' to link it.' %></span></span>
+<% if (p.linked) { %>
+      <form class="do" method="post" action="/account/apps/unlink">
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <input type="hidden" name="provider" value="<%= p.id %>">
+        <button type="submit" class="btn stroke small">Unlink<span class="sr"> <%= p.name %></span></button>
+      </form>
+<% } %>
+    </li>
+<% }) %>
+  </ul>
+</section>
+<% } %>
+<section class="panel" aria-labelledby="h-using">
+  <div class="panel-head">
+    <h2 id="h-using">Apps using <%= it.providerName %></h2>
+    <p>Apps you’re signed in to with this account.</p>
+  </div>
+  <ul class="rows">
+<% if (it.appsUnavailable) { %>
+    <li class="row"><span class="text"><span class="s">We can’t show your apps right now. Try again in a moment.</span></span></li>
+<% } else if (!it.apps.length) { %>
+    <li class="row"><span class="text"><span class="s">You haven’t signed in to any apps with this account yet.</span></span></li>
+<% } else { it.apps.forEach(function (a) { %>
+    <li><a class="row" href="/account/apps/app?id=<%= encodeURIComponent(a.key) %>">
+<% if (a.logo) { %>      <img class="app-tile" src="<%= a.logo %>" alt="" width="40" height="40">
+<% } else { %>      <span class="tile" aria-hidden="true"><%= a.name.trim().charAt(0).toUpperCase() %></span>
+<% } %>
+      <span class="text"><span class="t"><%= a.name %></span><span class="s">Signed in since <%= day(a.since) %></span></span>
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% }) } %>
+  </ul>
+</section>

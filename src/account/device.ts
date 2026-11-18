@@ -271,6 +271,20 @@ export function activityView(
           : { icon: 'shield-20', title: 'Name or language changed' };
       case 'identity_created':
         return { icon: 'shield-20', title: 'Account created' };
+      case 'export_downloaded':
+        return { icon: 'download', title: 'Copy of your data downloaded' };
+      case 'deletion_requested':
+        return { icon: 'delete', title: 'Account deletion requested' };
+      case 'deletion_cancelled':
+        return { icon: 'shield-20', title: 'Account deletion cancelled by signing in' };
+      case 'consent_revoked':
+        return {
+          icon: 'link',
+          title:
+            typeof e.detail.app === 'string'
+              ? `${e.detail.app}’s access removed`
+              : 'An app’s access removed',
+        };
       default:
         return null;
     }

@@ -107,6 +107,7 @@ export class SignIn {
     const label = device.name === 'Unknown device' ? null : device.name;
     const at = this.geo.locate(seen.ip);
     let newDevice = false;
+    let undeleted: Date | null = null;
     const opened = await this.db.tx(async (db) => {
       newDevice = await this.identities.isNewDevice(db, a.identityId, sid, label, at.country);
       const sessionId = await this.identities.openSession(db, {
@@ -137,6 +138,22 @@ export class SignIn {
         },
         db,
       );
+      // Signing in while a deletion waits cancels it (account-plan.md part 6): the member
+      // changed their mind, or someone else asked - either way, the account stays.
+      undeleted = await this.identities.cancelDeletion(db, a.identityId);
+      if (undeleted) {
+        await this.identities.event(
+          {
+            kind: 'deletion_cancelled',
+            outcome: 'success',
+            identityId: a.identityId,
+            clientId: request.client.client_id,
+            authSessionId: sessionId,
+            ...seen,
+          },
+          db,
+        );
+      }
       return sessionId;
     });
 
@@ -165,7 +182,23 @@ export class SignIn {
     });
     await this.redis.client.set(doneKey(challenge), to, 'EX', DONE_SECONDS);
     if (newDevice) await this.alertNewDevice(a.identityId, device, at);
+    if (undeleted) await this.tellUndeleted(a.identityId);
     return to;
+  }
+
+  /** The member signed in during the grace period, so their account is no longer being deleted. */
+  private async tellUndeleted(identityId: string): Promise<void> {
+    try {
+      const to = await this.identities.primaryIdentifier(identityId);
+      if (to?.kind !== 'email') return;
+      void this.email.sendNotice(to.value, 'Your account is no longer being deleted', [
+        `You signed in to your ${env.PROVIDER_NAME} account, so we've cancelled its deletion. Your account and everything in it stays as it was.`,
+        `If you still want to delete it, go to Data & privacy in your account and choose Delete account again.`,
+        "If you didn't sign in, change your password and check your devices in your account now.",
+      ]);
+    } catch {
+      // A missed email must not turn a good sign-in into an error page.
+    }
   }
 
   /**

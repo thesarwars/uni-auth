@@ -1,0 +1,81 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <h1 id="title">Data &amp; privacy</h1>
+</div>
+<% if (it.error) { %><p class="flash bad" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p><% } %>
+<section class="panel" aria-labelledby="h-download">
+  <div class="panel-head">
+    <h2 id="h-download">Download your data</h2>
+    <p>Your profile, sign-in methods, devices and security activity in one file.</p>
+  </div>
+  <ul class="rows">
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/download.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Download a copy</span><span class="s">A JSON file, saved to this device.</span></span>
+      <form class="do" method="post" action="/account/privacy/download" data-download>
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <button type="submit" class="btn stroke small">Download<span class="sr"> a copy of your data</span></button>
+      </form>
+    </li>
+  </ul>
+</section>
+<% if (it.apps.length) { %>
+<section class="panel" aria-labelledby="h-other">
+  <div class="panel-head">
+    <h2 id="h-other">Data in other apps</h2>
+    <p>Each app keeps its own data. Manage it in the app.</p>
+  </div>
+  <ul class="rows">
+<% it.apps.forEach(function (a) { %>
+    <li><a class="row" href="<%= a.dataUrl %>">
+<% if (a.logo) { %>      <img class="app-tile" src="<%= a.logo %>" alt="" width="40" height="40">
+<% } else { %>      <span class="tile" aria-hidden="true"><%= a.name.trim().charAt(0).toUpperCase() %></span>
+<% } %>
+      <span class="text"><span class="t"><%= a.name %></span><% if (a.dataSummary) { %><span class="s"><%= a.dataSummary %></span><% } %></span>
+      <img class="go" src="<%= asset('icons/arrow-up-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% }) %>
+  </ul>
+</section>
+<% } %>
+<% if (it.privacyUrl || it.termsUrl) { %>
+<section class="panel" aria-label="Privacy notice and terms">
+  <ul class="rows">
+<% if (it.privacyUrl) { %>
+    <li><a class="row first" href="<%= it.privacyUrl %>">
+      <span class="text"><span class="t">Privacy notice</span></span>
+      <img class="go" src="<%= asset('icons/arrow-up-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% } %>
+<% if (it.termsUrl) { %>
+    <li><a class="row<%= it.privacyUrl ? '' : ' first' %>" href="<%= it.termsUrl %>">
+      <span class="text"><span class="t">Terms of service</span></span>
+      <img class="go" src="<%= asset('icons/arrow-up-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% } %>
+  </ul>
+</section>
+<% } %>
+<section class="panel" aria-labelledby="h-delete">
+  <div class="panel-head">
+    <h2 id="h-delete">Delete your <%= it.providerName %> account</h2>
+    <p>Deletes your account and signs you out of every app that uses <%= it.providerName %>.</p>
+  </div>
+  <ul class="rows">
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/delete.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Delete account</span><span class="s">You can cancel within <%= it.graceDays %> days by signing in.</span></span>
+      <a class="btn danger small" href="/account/privacy/delete" data-dialog="delete-dialog">Delete account</a>
+    </li>
+  </ul>
+</section>
+<dialog id="delete-dialog" class="confirm" aria-labelledby="delete-title" aria-describedby="delete-detail">
+  <img src="<%= asset('icons/status-delete.svg') %>" alt="" width="64" height="64">
+  <h2 id="delete-title">Delete your <%= it.providerName %> account?</h2>
+  <p id="delete-detail">You’ll be signed out of <%= it.apps.length ? it.apps.map(function (a) { return a.name; }).join(', ') + ' and ' : '' %>every app that uses <%= it.providerName %>. Your account is deleted after <%= it.graceDays %> days. Sign in before then to cancel.</p>
+  <form class="actions" method="post" action="/account/privacy/delete">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <button type="button" class="btn ghost" data-dialog-close>Cancel</button>
+    <button type="submit" class="btn danger">Delete account</button>
+  </form>
+</dialog>

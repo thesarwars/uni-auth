@@ -67,6 +67,21 @@ export type LogoutRequest = z.infer<typeof LogoutRequest>;
 
 const Redirect = z.object({ redirect_to: z.string().url() });
 
+/**
+ * One consent Hydra granted a subject: a client, the scopes it was given, and when. Hydra keeps
+ * one per authorization - single sign-on and skip_consent clients included - until it is revoked.
+ */
+const ConsentSession = z.object({
+  grant_scope: z.array(z.string()).nullish(),
+  handled_at: z.coerce.date(),
+  consent_request: z.object({ client: Client }),
+});
+export interface Consent {
+  client: HydraClient;
+  scopes: string[];
+  grantedAt: Date;
+}
+
 /** A challenge Hydra does not know: expired, forged, or from another provider. */
 export class UnknownChallenge extends Error {
   constructor() {
@@ -133,6 +148,35 @@ export class HydraAdmin {
     await this.call('DELETE', `/admin/oauth2/auth/sessions/consent?subject=${s}&all=true`);
     await this.call('DELETE', `/admin/oauth2/auth/sessions/login?subject=${s}`).catch((err) => {
       if (!(err instanceof UnknownChallenge)) throw err; // no login session left
+    });
+  }
+
+  /** Every consent the subject holds: the apps it has signed in to and not been removed from. */
+  async listConsents(subject: string): Promise<Consent[]> {
+    const res = await this.call(
+      'GET',
+      `/admin/oauth2/auth/sessions/consent?subject=${enc(subject)}&page_size=500`,
+    );
+    return z
+      .array(ConsentSession)
+      .parse(await res.json())
+      .map((c) => ({
+        client: c.consent_request.client,
+        scopes: c.grant_scope ?? [],
+        grantedAt: c.handled_at,
+      }));
+  }
+
+  /**
+   * Withdraws one client's consents for a subject, and with them every access and refresh token
+   * the client holds for it. The member's login session is untouched: other apps stay signed in.
+   */
+  async revokeConsent(subject: string, clientId: string): Promise<void> {
+    await this.call(
+      'DELETE',
+      `/admin/oauth2/auth/sessions/consent?subject=${enc(subject)}&client=${enc(clientId)}`,
+    ).catch((err) => {
+      if (!(err instanceof UnknownChallenge)) throw err; // nothing left to revoke
     });
   }
 

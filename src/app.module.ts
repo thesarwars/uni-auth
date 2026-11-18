@@ -30,6 +30,8 @@ import { WhatsAppSender } from './delivery/whatsapp.sender';
 import { HydraAdmin } from './hydra/hydra-admin.service';
 import { IdentityRepository } from './identity/identity.repository';
 import { IdentityNotices } from './lifecycle/identity-notices';
+import { AccountDeletions } from './lifecycle/account-deletions';
+import { DataExport } from './account/data-export';
 import { ServiceToken } from './lifecycle/service-token';
 import { SignupStore } from './identity/signup.store';
 import { RedisService } from './redis/redis.service';
@@ -65,6 +67,8 @@ import { Upstream } from './upstream/upstream.service';
     SessionEnder,
     ServiceToken,
     IdentityNotices,
+    AccountDeletions,
+    DataExport,
     Upstream,
     AccountOidc,
     AccountSessions,

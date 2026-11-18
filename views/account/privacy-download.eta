@@ -1,0 +1,17 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <a class="back" href="/account/privacy"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Data &amp; privacy</a>
+  <h1 id="title">Download your data</h1>
+</div>
+<section class="panel" aria-label="Download a copy of your data">
+  <ul class="rows">
+    <li class="row first">
+      <span class="tile"><img src="<%= asset('icons/download.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t">Your copy is ready</span><span class="s">Your profile, sign-in methods, devices and security activity, as a JSON file.</span></span>
+      <form class="do" method="post" action="/account/privacy/download" data-download>
+        <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+        <button type="submit" class="btn small">Download</button>
+      </form>
+    </li>
+  </ul>
+</section>

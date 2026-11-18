@@ -84,6 +84,15 @@ const Env = z.object({
   IDENTITY_NOTICE_AUDIENCE: z.string().min(1).default('gsn-api-internal'),
   /** How often undelivered notices are looked for. */
   IDENTITY_NOTICE_POLL_MS: z.coerce.number().int().min(100).default(5000),
+  /**
+   * How often account deletions that have fallen due are carried out (account-plan.md part 6).
+   * A member waits 14 days, so a few minutes either way is nothing.
+   */
+  ACCOUNT_DELETION_POLL_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .default(10 * 60 * 1000),
 
   /**
    * The provider's name on the screens that are about the provider rather than a client:

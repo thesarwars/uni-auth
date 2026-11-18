@@ -74,7 +74,11 @@ export interface AuthEvent {
     | 'credential_revoked'
     | 'mfa_enabled'
     | 'mfa_disabled'
-    | 'recovery_code_used';
+    | 'recovery_code_used'
+    | 'export_downloaded'
+    | 'deletion_requested'
+    | 'deletion_cancelled'
+    | 'consent_revoked';
   outcome: 'success' | 'failure';
   identityId?: string | null;
   identifier?: Identifier | null;
@@ -1008,6 +1012,99 @@ export class IdentityRepository {
       [a.identityId],
     );
     return { credentialId: done!.id, ended: res.rows.map((r) => r.sid) };
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Data and privacy (account-plan.md part 6)
+  // ---------------------------------------------------------------------------------------
+
+  /** The Google and Apple accounts linked to the identity, with the address each one gave. */
+  async linkedProviders(
+    identityId: string,
+  ): Promise<
+    { id: string; kind: 'oauth_google' | 'oauth_apple'; email: string | null; linkedAt: Date }[]
+  > {
+    const rows = await this.db.rows<{
+      id: string;
+      kind: 'oauth_google' | 'oauth_apple';
+      provider_email: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, kind, provider_email, created_at FROM credential
+        WHERE identity_id = $1 AND kind IN ('oauth_google', 'oauth_apple') AND revoked_at IS NULL
+        ORDER BY kind, created_at`,
+      [identityId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      email: r.provider_email,
+      linkedAt: r.created_at,
+    }));
+  }
+
+  /**
+   * Unlinks a Google or Apple account. The sessions it opened end with it (0001:
+   * credential_revoke_sessions), except `keepSid`, the session asking. Returns the sids ended,
+   * for Hydra, or null when there was no such link. The identity can still sign in: it always
+   * keeps a verified address to send a code to (0005).
+   */
+  async unlinkProvider(
+    db: Db,
+    identityId: string,
+    kind: 'oauth_google' | 'oauth_apple',
+    keepSid: string,
+  ): Promise<string[] | null> {
+    await db.query(`SELECT set_config('uni_auth.keep_sid', $1, true)`, [keepSid]);
+    const res = await db.query(
+      `UPDATE credential SET revoked_at = now(), revoke_reason = 'removed_by_member'
+        WHERE identity_id = $1 AND kind = $2 AND revoked_at IS NULL`,
+      [identityId, kind],
+    );
+    await db.query(`SELECT set_config('uni_auth.keep_sid', '', true)`);
+    if (!res.rowCount) return null;
+    return this.sessionsEndedNow(db, identityId, 'credential_revoked');
+  }
+
+  /**
+   * Schedules the identity's deletion (0012: 14 days on) and signs it out of every device.
+   * Returns when it falls due and the sids ended, for Hydra. Asked twice, the first request
+   * stands.
+   */
+  async requestDeletion(
+    db: Db,
+    identityId: string,
+  ): Promise<{ scheduledFor: Date; ended: string[] }> {
+    await db.query(
+      `INSERT INTO account_deletion (identity_id, scheduled_for) VALUES ($1, now())
+       ON CONFLICT (identity_id) WHERE cancelled_at IS NULL AND completed_at IS NULL DO NOTHING`,
+      [identityId],
+    );
+    const pending = await one<{ scheduled_for: Date }>(
+      db,
+      `SELECT scheduled_for FROM account_deletion
+        WHERE identity_id = $1 AND cancelled_at IS NULL AND completed_at IS NULL`,
+      [identityId],
+    );
+    const ended = await db.query<{ sid: string }>(
+      `UPDATE auth_session SET revoked_at = now(), revoke_reason = 'deletion_requested'
+        WHERE identity_id = $1 AND revoked_at IS NULL
+        RETURNING sid`,
+      [identityId],
+    );
+    return { scheduledFor: pending!.scheduled_for, ended: ended.rows.map((r) => r.sid) };
+  }
+
+  /** Cancels the identity's pending deletion; the date it was due, or null if none waited. */
+  async cancelDeletion(db: Db, identityId: string): Promise<Date | null> {
+    const row = await one<{ scheduled_for: Date }>(
+      db,
+      `UPDATE account_deletion SET cancelled_at = now()
+        WHERE identity_id = $1 AND cancelled_at IS NULL AND completed_at IS NULL
+        RETURNING scheduled_for`,
+      [identityId],
+    );
+    return row?.scheduled_for ?? null;
   }
 
   /** Appends to auth_event, in the caller's transaction or on its own. */

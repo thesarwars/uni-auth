@@ -38,6 +38,9 @@ describe('the account centre app list', () => {
         name: 'Go Style Network',
         url: 'https://gsn.gostyle.uk',
         logo: expect.stringMatching(/^\/assets\/clients\/gsn\.png\?v=[0-9a-f]{12}$/),
+        // No data_uri or data_summary: Data & privacy links to its home page, with no summary.
+        dataUrl: 'https://gsn.gostyle.uk',
+        dataSummary: null,
       },
     ]);
   });

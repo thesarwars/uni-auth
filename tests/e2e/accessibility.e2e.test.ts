@@ -204,6 +204,11 @@ beforeAll(async () => {
     'account rename passkey, refused',
     await a.post(`${APP}/account/passkeys/rename`, { _csrf: token(), id: passkeyId, name: ' ' }),
   );
+  // Data & privacy and Linked apps (account-plan.md part 6).
+  keep('account linked apps', await a.get(`${APP}/account/apps`));
+  keep('account data and privacy', await a.get(`${APP}/account/privacy`));
+  keep('account download your data', await a.get(`${APP}/account/privacy/download`));
+  keep('account delete your account', await a.get(`${APP}/account/privacy/delete`));
   ({ b, page } = await start());
   page = await post(b, page, { action: 'identify', identifier: holder.email });
   page = await post(b, page, { action: 'password', password: holder.password });
@@ -242,6 +247,10 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
     'account passkeys',
     'account rename passkey',
     'account rename passkey, refused',
+    'account linked apps',
+    'account data and privacy',
+    'account download your data',
+    'account delete your account',
     'password',
     'password, wrong',
     'reset',

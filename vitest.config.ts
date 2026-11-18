@@ -36,6 +36,8 @@ const defaults: Record<string, string> = {
   // them itself rather than waiting for the poll.
   IDENTITY_NOTICE_URL: 'http://127.0.0.1:4780/identity-notices',
   IDENTITY_NOTICE_POLL_MS: '3600000',
+  // Run by tests/e2e/data-privacy.e2e.test.ts itself, with a date 15 days on.
+  ACCOUNT_DELETION_POLL_MS: '3600000',
   // The identity database as the application's own role (scripts/db-dev-roles.mjs).
   DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };
