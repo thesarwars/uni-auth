@@ -9,6 +9,13 @@
     <p>Shown in apps that use <%= it.providerName %>.</p>
   </div>
   <ul class="rows">
+<% if (it.photos) { %>
+    <li><a class="row" href="/account/personal/photo">
+      <span class="k">Photo</span>
+      <span class="v"><span class="val photo-row"><%~ include('./_avatar', { photo: it.photo, initials: it.initials }) %><span><%= it.photo ? 'Change' : 'Add a photo' %></span></span></span>
+      <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
+    </a></li>
+<% } %>
     <li><a class="row" href="/account/personal/edit#display_name">
       <span class="k">Name</span>
       <span class="v"><span class="val"><%= it.profile.displayName || 'Not set' %></span></span>

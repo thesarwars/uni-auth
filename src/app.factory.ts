@@ -4,6 +4,9 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import cookie from '@fastify/cookie';
 import csrf from '@fastify/csrf-protection';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
+import { PHOTO_MAX_BYTES } from './photos/photos';
+import type { Upload } from './photos/upload';
 import { createEta } from './common/eta';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
@@ -57,6 +60,24 @@ export async function createApp(
       sameSite: 'strict',
       path: '/',
       secure: env.NODE_ENV === 'production',
+    },
+  });
+
+  // Uploads (the profile photo): parsed into the body like any form, so CsrfGuard reads _csrf
+  // the same way. One file, read into memory up to one byte past the limit; a larger one arrives
+  // marked too large rather than failing the request, so the member gets a page that says so.
+  await app.register(multipart, {
+    attachFieldsToBody: 'keyValues',
+    limits: { files: 1, fields: 4, fieldSize: 1024, fileSize: PHOTO_MAX_BYTES + 1, parts: 5 },
+    throwFileSizeLimit: false,
+    onFile: async (part) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of part.file) chunks.push(chunk as Buffer);
+      const upload: Upload = {
+        data: Buffer.concat(chunks),
+        tooLarge: part.file.truncated,
+      };
+      (part as unknown as { value: Upload }).value = upload;
     },
   });
 

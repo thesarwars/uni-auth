@@ -1,0 +1,2 @@
+<%/* The member's avatar: their photo when they have one, else their initials. */%>
+<span class="avatar-i<%= it.photo ? ' has-photo' : '' %>" aria-hidden="true"<% if (it.id) { %> id="<%= it.id %>"<% } %>><% if (it.photo) { %><img src="<%= it.photo %>" alt=""><% } else { %><%= it.initials %><% } %></span>

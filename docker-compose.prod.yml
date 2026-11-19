@@ -156,6 +156,14 @@ services:
       APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
       APPLE_KEY_ID: ${APPLE_KEY_ID:-}
       APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      # Profile photos. Until the client's S3 exists, the s3 service below stands in for it.
+      # For real S3: set S3_ENDPOINT= (empty: AWS itself), S3_PHOTO_BUCKET, S3_REGION and the
+      # keys in .env (or leave the keys empty on an instance role), then move the files across.
+      S3_PHOTO_BUCKET: ${S3_PHOTO_BUCKET:-entity-photos}
+      S3_ENDPOINT: ${S3_ENDPOINT-http://s3:9090}
+      S3_REGION: ${S3_REGION:-eu-west-2}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID-local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY-local}
       # Filled by geoipupdate; with no file, locations are simply left out.
       GEOIP_DB_PATH: /usr/share/GeoIP/GeoLite2-City.mmdb
     volumes:
@@ -165,10 +173,25 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       setup: { condition: service_completed_successfully }
+      s3: { condition: service_started }
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3100/health']
       interval: 5s
       retries: 20
+
+  # Profile photos, until the client's S3: s3mock (as GSN's api uses), on no published port.
+  # The photos live in the s3 volume - back it up with the databases.
+  s3:
+    image: adobe/s3mock:5.2.3
+    restart: unless-stopped
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: entity-photos
+      COM_ADOBE_TESTING_S3MOCK_STORE_REGION: eu-west-2
+      # The image runs as cnb, which owns /home/cnb: a volume there is writable.
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /home/cnb/store
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: 'true'
+    volumes:
+      - s3:/home/cnb
 
   # MaxMind GeoLite2 City, for the approximate location on Devices and Security activity
   # (account-plan.md AC-D6). Downloads the database into the geoip volume and refreshes it
@@ -190,6 +213,7 @@ volumes:
   identity-db:
   hydra-db:
   geoip:
+  s3:
 
 networks:
   default:

@@ -33,6 +33,9 @@ import { DataExport } from './data-export';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
 import { RedisService } from '../redis/redis.service';
 import { Upstream, PROVIDERS, type Provider } from '../upstream/upstream.service';
+import { PhotoRepository } from '../photos/photo.repository';
+import { PhotoRefused, Photos } from '../photos/photos';
+import { isUpload } from '../photos/upload';
 
 const SESSION_COOKIE = 'ea_account';
 const STATE_COOKIE = 'ea_account_state';
@@ -72,15 +75,20 @@ const DONE: Record<string, string> = {
   passkey_removed: 'Passkey removed.',
   access_removed: 'Access removed. The app will ask you to sign in again next time.',
   unlinked: 'Unlinked. You can no longer sign in with that account.',
+  photo: 'Your photo is saved.',
+  photo_removed: 'Your photo is removed.',
 };
 
 /** Downloads of one's data an hour: plenty for a member, few enough to make scraping slow. */
 const DOWNLOADS_PER_HOUR = 5;
 
+/** Photo changes an hour: room to try a few, too few to use the bucket as storage. */
+const PHOTOS_PER_HOUR = 20;
+
 /** What a member gave an app, in plain words, by OpenID Connect scope. Others aren't shown. */
 const SCOPE_WORDS: Record<string, string> = {
   openid: 'Know it’s you, by your Entity account ID',
-  profile: 'See your name and language',
+  profile: 'See your name, language and photo',
   email: 'See your email address',
   phone: 'See your phone number',
   offline_access: 'Keep you signed in',
@@ -138,6 +146,8 @@ export class AccountController {
     private readonly redis: RedisService,
     private readonly upstream: Upstream,
     private readonly hydra: HydraAdmin,
+    private readonly photos: Photos,
+    private readonly photoRecords: PhotoRepository,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -451,6 +461,107 @@ export class AccountController {
       );
     });
     await redirect(reply, '/account/personal?done=profile');
+  }
+
+  /** Profile photo: shown here and, to apps given the profile scope, as the picture claim. */
+  @Get('personal/photo')
+  async photo(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/personal/photo');
+    if (!s) return;
+    if (!this.photos.enabled) {
+      await redirect(reply, '/account/personal');
+      return;
+    }
+    await this.render(reply, s, 'account/personal-photo', 'Profile photo', 'personal', {
+      error: null,
+    });
+  }
+
+  @Post('personal/photo')
+  async savePhoto(
+    @Body() body: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const s = await this.guard(req, reply, '/account/personal/photo');
+    if (!s) return;
+    if (!this.photos.enabled) {
+      await redirect(reply, '/account/personal');
+      return;
+    }
+    const refuse = (error: string, status: number) =>
+      this.render(
+        reply,
+        s,
+        'account/personal-photo',
+        'Profile photo',
+        'personal',
+        { error },
+        status,
+      );
+
+    const upload = (body as { photo?: unknown } | undefined)?.photo;
+    if (!isUpload(upload) || upload.data.length === 0) {
+      await refuse('Choose a photo to upload.', 422);
+      return;
+    }
+    if (upload.tooLarge) {
+      await refuse('Choose a photo under 5 MB.', 413);
+      return;
+    }
+    const key = `uni-auth:photo:${s.sub}`;
+    const count = await this.redis.client.incr(key);
+    if (count === 1) await this.redis.client.expire(key, 3600);
+    if (count > PHOTOS_PER_HOUR) {
+      await refuse(
+        `You can change your photo ${PHOTOS_PER_HOUR} times an hour. Try again later.`,
+        429,
+      );
+      return;
+    }
+    let stored: { key: string; bytes: number };
+    try {
+      stored = await this.photos.upload(upload.data);
+    } catch (e) {
+      if (e instanceof PhotoRefused) {
+        await refuse(e.message, 422);
+        return;
+      }
+      throw e;
+    }
+    await this.db.tx(async (db) => {
+      await this.photoRecords.replace(db, s.sub, stored.key, stored.bytes);
+      await this.identities.event(
+        {
+          ...this.seen(req, s),
+          kind: 'profile_updated',
+          outcome: 'success',
+          detail: { fields: ['photo'] },
+        },
+        db,
+      );
+    });
+    await redirect(reply, '/account/personal?done=photo');
+  }
+
+  @Post('personal/photo/remove')
+  async removePhoto(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const s = await this.guard(req, reply, '/account/personal/photo');
+    if (!s) return;
+    const removed = await this.db.tx(async (db) => {
+      if (!(await this.photoRecords.retire(db, s.sub))) return false;
+      await this.identities.event(
+        {
+          ...this.seen(req, s),
+          kind: 'profile_updated',
+          outcome: 'success',
+          detail: { fields: ['photo'], removed: true },
+        },
+        db,
+      );
+      return true;
+    });
+    await redirect(reply, removed ? '/account/personal?done=photo_removed' : '/account/personal');
   }
 
   // ---------------------------------------------------------------------------------------
@@ -1669,6 +1780,8 @@ export class AccountController {
         who: who?.value ?? '',
         name: profile.displayName ?? '',
         initials: initials(profile.displayName, who?.value ?? ''),
+        photo: await this.photos.path(s.sub),
+        photos: this.photos.enabled,
         help: env.HELP_URL || null,
         csrfToken: reply.generateCsrf(),
       },

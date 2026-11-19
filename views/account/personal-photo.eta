@@ -1,0 +1,31 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <a class="back" href="/account/personal"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Personal info</a>
+  <h1 id="title">Profile photo</h1>
+</div>
+<section class="panel pad photo-edit" aria-label="Profile photo">
+  <div class="photo-preview">
+    <%~ include('./_avatar', { photo: it.photo, initials: it.initials, id: 'photo-preview' }) %>
+  </div>
+  <form method="post" action="/account/personal/photo" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <div class="field">
+      <label for="photo"><%= it.photo ? 'Choose a new photo' : 'Choose a photo' %></label>
+      <input id="photo" class="file" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="photo-hint<% if (it.error) { %> photo-error<% } %>"<% if (it.error) { %> aria-invalid="true"<% } %>>
+      <p id="photo-hint" class="hint">JPEG, PNG or WebP, up to 5 MB. It’s cropped square from the centre and shown in apps that use <%= it.providerName %>.</p>
+    </div>
+<% if (it.error) { %>
+    <p id="photo-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p>
+<% } %>
+    <div class="actions">
+      <a class="btn ghost" href="/account/personal">Cancel</a>
+      <button type="submit" class="btn">Save</button>
+    </div>
+  </form>
+<% if (it.photo) { %>
+  <form class="photo-remove" method="post" action="/account/personal/photo/remove">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <button type="submit" class="btn stroke danger-text">Remove photo</button>
+  </form>
+<% } %>
+</section>

@@ -42,6 +42,11 @@ import { RecoveryController } from './recovery/recovery.controller';
 import { RecoveryMail } from './recovery/recovery-mail';
 import { RecoveryReview } from './recovery/recovery-review';
 import { RecoveryRepository } from './recovery/recovery.repository';
+import { PhotoCleanup } from './photos/photo-cleanup';
+import { PhotoRepository } from './photos/photo.repository';
+import { PhotoStore } from './photos/photo-store';
+import { Photos } from './photos/photos';
+import { PhotosController } from './photos/photos.controller';
 
 @Module({
   controllers: [
@@ -56,6 +61,7 @@ import { RecoveryRepository } from './recovery/recovery.repository';
     TwoStepController,
     PasskeySignInController,
     RecoveryController,
+    PhotosController,
   ],
   providers: [
     HydraAdmin,
@@ -87,6 +93,10 @@ import { RecoveryRepository } from './recovery/recovery.repository';
     RecoveryReview,
     RecoveryMail,
     MfaRecoveries,
+    PhotoStore,
+    PhotoRepository,
+    Photos,
+    PhotoCleanup,
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: PageErrorFilter },
   ],

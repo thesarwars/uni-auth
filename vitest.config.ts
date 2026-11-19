@@ -42,6 +42,13 @@ const defaults: Record<string, string> = {
   // itself, with dates 7 days on.
   RECOVERY_REVIEW_URL: 'http://127.0.0.1:4781/recovery-requests',
   MFA_RECOVERY_POLL_MS: '3600000',
+  // Profile photos go to docker-compose.yml's s3mock; tests/e2e/profile-photo.e2e.test.ts runs
+  // the cleanup itself.
+  S3_PHOTO_BUCKET: 'entity-photos',
+  S3_ENDPOINT: 'http://127.0.0.1:9100',
+  S3_ACCESS_KEY_ID: 'local',
+  S3_SECRET_ACCESS_KEY: 'local',
+  PHOTO_CLEANUP_MS: '3600000',
   // The identity database as the application's own role (scripts/db-dev-roles.mjs).
   DATABASE_URL: 'postgres://uni_auth_api:uni_auth_api@127.0.0.1:5434/identity',
 };

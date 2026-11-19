@@ -32,20 +32,21 @@ export class DataExport {
   ) {}
 
   async build(identityId: string, now = new Date()): Promise<Record<string, unknown>> {
-    const [account, identifiers, methods, sessions, events, deletions, apps] = await Promise.all([
-      this.db.rows<Row>(
-        `SELECT id, status, display_name, locale, created_at FROM identity WHERE id = $1`,
-        [identityId],
-      ),
-      this.db.rows<Row>(
-        `SELECT kind, value, is_primary, verified_at, created_at, revoked_at
+    const [account, identifiers, methods, sessions, events, deletions, apps, photos] =
+      await Promise.all([
+        this.db.rows<Row>(
+          `SELECT id, status, display_name, locale, created_at FROM identity WHERE id = $1`,
+          [identityId],
+        ),
+        this.db.rows<Row>(
+          `SELECT kind, value, is_primary, verified_at, created_at, revoked_at
            FROM identity_identifier
           WHERE identity_id = $1 AND pii_scrubbed_at IS NULL
           ORDER BY created_at, id`,
-        [identityId],
-      ),
-      this.db.rows<Row>(
-        `SELECT c.kind, c.created_at, c.last_used_at, c.revoked_at, c.revoke_reason,
+          [identityId],
+        ),
+        this.db.rows<Row>(
+          `SELECT c.kind, c.created_at, c.last_used_at, c.revoked_at, c.revoke_reason,
                 c.provider_subject, c.provider_email, c.nickname, c.transports, c.aaguid,
                 c.backup_eligible,
                 CASE WHEN c.kind = 'recovery_codes' THEN
@@ -54,31 +55,36 @@ export class DataExport {
            FROM credential c
           WHERE c.identity_id = $1 AND c.pii_scrubbed_at IS NULL
           ORDER BY c.created_at, c.id`,
-        [identityId],
-      ),
-      this.db.rows<Row>(
-        `SELECT client_id, device_label, user_agent, host(ip_address) AS ip, geo_city, geo_country,
+          [identityId],
+        ),
+        this.db.rows<Row>(
+          `SELECT client_id, device_label, user_agent, host(ip_address) AS ip, geo_city, geo_country,
                 created_at, last_seen_at, expires_at, revoked_at, revoke_reason
            FROM auth_session
           WHERE identity_id = $1
           ORDER BY created_at, id`,
-        [identityId],
-      ),
-      this.db.rows<Row>(
-        `SELECT occurred_at, kind, outcome, client_id, credential_kind, host(ip_address) AS ip,
+          [identityId],
+        ),
+        this.db.rows<Row>(
+          `SELECT occurred_at, kind, outcome, client_id, credential_kind, host(ip_address) AS ip,
                 user_agent, detail
            FROM auth_event
           WHERE identity_id = $1
           ORDER BY occurred_at, id`,
-        [identityId],
-      ),
-      this.db.rows<Row>(
-        `SELECT requested_at, scheduled_for, cancelled_at, completed_at
+          [identityId],
+        ),
+        this.db.rows<Row>(
+          `SELECT requested_at, scheduled_for, cancelled_at, completed_at
            FROM account_deletion WHERE identity_id = $1 ORDER BY requested_at`,
-        [identityId],
-      ),
-      this.apps(identityId),
-    ]);
+          [identityId],
+        ),
+        this.apps(identityId),
+        this.db.rows<Row>(
+          `SELECT object_key, created_at, replaced_at FROM identity_photo
+          WHERE identity_id = $1 ORDER BY created_at, id`,
+          [identityId],
+        ),
+      ]);
     const a = account[0]!;
     return {
       format: EXPORT_FORMAT,
@@ -129,6 +135,13 @@ export class DataExport {
       })),
       apps: apps,
       deletion_requests: deletions,
+      // The current photo by its address; earlier ones only by when they were added and replaced,
+      // as their files are deleted.
+      profile_photos: photos.map((r) => ({
+        url: r.replaced_at ? null : `${env.LOGIN_PUBLIC_URL}/${String(r.object_key)}`,
+        added_at: r.created_at,
+        replaced_at: r.replaced_at,
+      })),
     };
   }
 
