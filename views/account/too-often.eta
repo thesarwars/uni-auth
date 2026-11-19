@@ -1,0 +1,6 @@
+<% layout('./layout') %>
+<div class="page-head">
+  <a class="back" href="<%= it.back.href %>"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18"><%= it.back.label %></a>
+  <h1 id="title">Try again later</h1>
+</div>
+<p class="flash bad" role="alert"><%~ include('../_alert-icon') %><span><%= it.message %></span></p>

@@ -25,6 +25,7 @@ import {
   type Resolved,
 } from '../identity/identity.repository';
 import { Throttle } from '../throttle/throttle.service';
+import { Limits } from '../limits/limits';
 import { PROVIDERS, Upstream, type Provider } from '../upstream/upstream.service';
 import { assetUrl, clientLogo } from './assets.controller';
 import { UPSTREAM_COOKIE, type UpstreamError } from './upstream.controller';
@@ -108,6 +109,7 @@ export class LoginController {
     private readonly email: EmailSender,
     private readonly whatsapp: WhatsAppSender,
     private readonly throttle: Throttle,
+    private readonly limits: Limits,
     private readonly signIn: SignIn,
     private readonly upstream: Upstream,
     private readonly signups: SignupStore,
@@ -423,6 +425,12 @@ export class LoginController {
 
   /** Issues or resends the code, delivers it after commit, and shows the code screen. */
   private async issue(ctx: Ctx, purpose: OtpPurpose, identityId: string | null): Promise<void> {
+    // OTP caps each address it sends to; this caps how many one network sends, to anyone.
+    const taken = await this.limits.take('codes', ctx.seen.ip);
+    if (!taken.ok) {
+      await this.codeScreen(ctx, purpose, null, { rateLimited: taken.retryAt, network: true });
+      return;
+    }
     const sent = await this.db.tx((db) =>
       this.otp.send(db, {
         identityId,
@@ -816,6 +824,8 @@ export class LoginController {
       remaining?: number | null;
       locked?: Date;
       rateLimited?: Date;
+      /** Rate limited by the codes sent from this network, not to this address. */
+      network?: boolean;
       expired?: boolean;
       ticketExpired?: boolean;
     } = {},
@@ -840,6 +850,7 @@ export class LoginController {
         remaining: state.remaining ?? null,
         locked: !!state.locked,
         rateLimited: !!state.rateLimited,
+        network: !!state.network,
         minutes: blocked ? minutesUntil(blocked) : null,
         expired: !!state.expired,
         ticketExpired: !!state.ticketExpired,
@@ -1021,14 +1032,16 @@ function heading(purpose: OtpPurpose | null, id: Identifier): string {
 
 const providerName = (p: Provider): string => (p === 'google' ? 'Google' : 'Apple');
 
-/** The one-line reason for coming back from Google or Apple without being signed in. */
 /** Why a passkey sign-in came back here (PasskeySignInController). */
 function passkeyReason(why: unknown): string | undefined {
   if (why === 'suspended') return 'This account is suspended, so it cannot sign in.';
   if (why === 'failed') return "That passkey couldn't be used. Try again, or sign in another way.";
+  if (why === 'busy')
+    return 'Too many passkey sign-ins came from your network. Try again in a few minutes, or sign in another way.';
   return undefined;
 }
 
+/** The one-line reason for coming back from Google or Apple without being signed in. */
 function upstreamReason(provider: unknown, why: unknown): string | undefined {
   if (provider !== 'google' && provider !== 'apple') return undefined;
   const name = providerName(provider);

@@ -36,6 +36,7 @@ import { ServiceToken } from './lifecycle/service-token';
 import { SignupStore } from './identity/signup.store';
 import { RedisService } from './redis/redis.service';
 import { Throttle } from './throttle/throttle.service';
+import { Limits } from './limits/limits';
 import { Upstream } from './upstream/upstream.service';
 import { MfaRecoveries } from './recovery/mfa-recoveries';
 import { RecoveryController } from './recovery/recovery.controller';
@@ -74,6 +75,7 @@ import { PhotosController } from './photos/photos.controller';
     WhatsAppSender,
     RedisService,
     Throttle,
+    Limits,
     SignIn,
     SignupStore,
     SessionEnder,

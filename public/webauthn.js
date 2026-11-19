@@ -40,9 +40,9 @@
     if (
       kind === 'get' &&
       form.hasAttribute('data-autofill') &&
-      typeof PublicKeyCredential.isConditionalMediationAvailable === 'function'
+      typeof window.PublicKeyCredential.isConditionalMediationAvailable === 'function'
     ) {
-      PublicKeyCredential.isConditionalMediationAvailable().then(
+      window.PublicKeyCredential.isConditionalMediationAvailable().then(
         function (ok) {
           if (ok) run(true);
         },
@@ -67,6 +67,7 @@
             location.reload();
             throw { quiet: true };
           }
+          if (res.status === 429) throw { name: 'TooOften' };
           if (!res.ok) throw new Error('options');
           return res.json();
         })
@@ -92,13 +93,15 @@
           var name = err && err.name;
           if (name === 'AbortError') return;
           say(
-            name === 'InvalidStateError' && kind === 'create'
-              ? 'This device already has a passkey for your account.'
-              : name === 'NotAllowedError'
-                ? kind === 'create'
-                  ? 'The passkey wasn’t saved. Try again when you’re ready.'
-                  : 'The passkey wasn’t used. Try again, or sign in another way.'
-                : 'Passkeys aren’t working here right now. Try again, or sign in another way.',
+            name === 'TooOften'
+              ? 'Too many tries in a short while. Try again in a few minutes.'
+              : name === 'InvalidStateError' && kind === 'create'
+                ? 'This device already has a passkey for your account.'
+                : name === 'NotAllowedError'
+                  ? kind === 'create'
+                    ? 'The passkey wasn’t saved. Try again when you’re ready.'
+                    : 'The passkey wasn’t used. Try again, or sign in another way.'
+                  : 'Passkeys aren’t working here right now. Try again, or sign in another way.',
           );
         });
     }

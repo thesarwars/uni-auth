@@ -21,7 +21,7 @@
 <% if (it.locked) { %>
   <p class="text-block" role="alert">For your security, no more codes can be sent to <strong><%= it.destination %></strong> for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
 <% } else if (it.rateLimited) { %>
-  <p class="text-block" role="alert">We've sent as many codes to <strong><%= it.destination %></strong> as we can for now. You can ask for another in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
+  <p class="text-block" role="alert"><% if (it.network) { %>We've sent as many codes from your network as we can for now.<% } else { %>We've sent as many codes to <strong><%= it.destination %></strong> as we can for now.<% } %> You can ask for another in <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>.</p>
 <% } else if (it.expired) { %>
 <% if (it.ticketExpired && it.purpose === 'signup') { %>
   <p class="text-block" role="alert">Nothing was saved. Start again to create your account.</p>

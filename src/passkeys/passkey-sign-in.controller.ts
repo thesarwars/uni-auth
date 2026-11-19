@@ -6,6 +6,7 @@ import { Challenge, confirmSubject, parse } from '../flows/login.controller';
 import { SignIn, type Seen } from '../flows/sign-in.service';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
 import { IdentityRepository } from '../identity/identity.repository';
+import { Limits } from '../limits/limits';
 import { Passkeys } from './passkeys.service';
 
 const Form = z.object({
@@ -28,13 +29,21 @@ export class PasskeySignInController {
     private readonly hydra: HydraAdmin,
     private readonly identities: IdentityRepository,
     private readonly passkeys: Passkeys,
+    private readonly limits: Limits,
     private readonly signIn: SignIn,
   ) {}
 
   /** navigator.credentials.get options, with a challenge for this sign-in. */
   @Get('options')
-  async options(@Query('login_challenge') raw: unknown, @Res() reply: FastifyReply) {
+  async options(
+    @Query('login_challenge') raw: unknown,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ) {
     const challenge = parse(Challenge, raw);
+    if (!(await this.limits.take('passkey_sign_in', req.ip)).ok) {
+      return reply.status(429).header('cache-control', 'no-store').send({});
+    }
     const options = await this.passkeys.signInOptions(signInFlow(challenge));
     return reply.header('cache-control', 'no-store').send(options);
   }
@@ -47,6 +56,10 @@ export class PasskeySignInController {
   ): Promise<void> {
     const form = parse(Form, body);
     const challenge = form.login_challenge;
+    if (!(await this.limits.take('passkey_sign_in', req.ip)).ok) {
+      await redirect(reply, `/login?login_challenge=${encodeURIComponent(challenge)}&passkey=busy`);
+      return;
+    }
     const done = await this.signIn.finished(challenge);
     if (done) {
       await redirect(reply, done);

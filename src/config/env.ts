@@ -38,6 +38,11 @@ const Env = z.object({
   REDIS_URL: z.string().url(),
   /** Namespaces the throttle's keys, so a test run starts from zero. */
   THROTTLE_KEY_PREFIX: z.string().default('uni-auth:throttle:'),
+  /**
+   * Multiplies the per-address limits (src/limits/limits.ts). 1 in production; the test suite,
+   * whose every request comes from 127.0.0.1, raises it.
+   */
+  ADDRESS_LIMIT_SCALE: z.coerce.number().int().min(1).default(1),
 
   /**
    * The proxies in front of this server whose X-Forwarded-For is believed, as comma-separated
