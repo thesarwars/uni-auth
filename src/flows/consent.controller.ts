@@ -3,6 +3,7 @@ import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { redirect } from '../common/pages';
 import { HydraAdmin, type ConsentRequest } from '../hydra/hydra-admin.service';
+import { Photos } from '../photos/photos';
 import { parse } from './login.controller';
 
 const Challenge = z.string().min(1).max(4096);
@@ -14,7 +15,10 @@ const Challenge = z.string().min(1).max(4096);
  */
 @Controller('consent')
 export class ConsentController {
-  constructor(private readonly hydra: HydraAdmin) {}
+  constructor(
+    private readonly hydra: HydraAdmin,
+    private readonly photos: Photos,
+  ) {}
 
   @Get()
   async handle(
@@ -34,10 +38,17 @@ export class ConsentController {
       return;
     }
 
+    const scope = request.requested_scope ?? [];
+    const session = sessionClaims(request);
+    // The profile scope's picture claim (OIDC Core 5.1): the member's photo, when they have one.
+    if (scope.includes('profile')) {
+      const picture = await this.photos.url(request.subject);
+      if (picture) session.id_token.picture = picture;
+    }
     const to = await this.hydra.acceptConsent(challenge, {
-      grant_scope: request.requested_scope ?? [],
+      grant_scope: scope,
       grant_access_token_audience: request.requested_access_token_audience ?? [],
-      session: sessionClaims(request),
+      session,
     });
     await redirect(reply, to);
   }

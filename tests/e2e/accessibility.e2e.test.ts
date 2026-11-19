@@ -3,6 +3,7 @@ import axe from 'axe-core';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Outbox } from '../../src/delivery/outbox';
 import { codeAt, fromBase32, stepAt } from '../../src/two-step/totp';
@@ -209,6 +210,29 @@ beforeAll(async () => {
   keep('account data and privacy', await a.get(`${APP}/account/privacy`));
   keep('account download your data', await a.get(`${APP}/account/privacy/download`));
   keep('account delete your account', await a.get(`${APP}/account/privacy/delete`));
+  // Profile photo: none yet, then a refused upload (the error), then one in place.
+  keep('account profile photo', (acct = (await a.follow(`${APP}/account/personal/photo`)).hop));
+  const photoForm = (data: Buffer, name: string, type: string) => {
+    const form = new FormData();
+    form.set('_csrf', token());
+    form.set('photo', new Blob([new Uint8Array(data)], { type }), name);
+    return form;
+  };
+  keep(
+    'account profile photo, refused',
+    await a.upload(
+      `${APP}/account/personal/photo`,
+      photoForm(Buffer.from('x'), 'a.txt', 'text/plain'),
+    ),
+  );
+  const png = await sharp({
+    create: { width: 300, height: 300, channels: 3, background: '#556677' },
+  })
+    .png()
+    .toBuffer();
+  await a.upload(`${APP}/account/personal/photo`, photoForm(png, 'me.png', 'image/png'));
+  keep('account personal info, with photo', await a.get(`${APP}/account/personal`));
+  keep('account profile photo, set', await a.get(`${APP}/account/personal/photo`));
   ({ b, page } = await start());
   page = await post(b, page, { action: 'identify', identifier: holder.email });
   page = await post(b, page, { action: 'password', password: holder.password });

@@ -94,6 +94,21 @@ services:
       interval: 5s
       retries: 20
 
+  # Profile photos (S3_PHOTO_BUCKET): s3mock stands in for S3, the same image GSN's api uses.
+  # Files are kept in the s3 volume. In .env: S3_PHOTO_BUCKET=entity-photos
+  # S3_ENDPOINT=http://localhost:9100 S3_ACCESS_KEY_ID=local S3_SECRET_ACCESS_KEY=local
+  s3:
+    image: adobe/s3mock:5.2.3
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: entity-photos
+      COM_ADOBE_TESTING_S3MOCK_STORE_REGION: eu-west-2
+      # The image runs as cnb, which owns /home/cnb: a volume there is writable.
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /home/cnb/store
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: 'true'
+    ports: ['127.0.0.1:9100:9090']
+    volumes:
+      - s3:/home/cnb
+
   # MaxMind GeoLite2 City into ./data/geoip, for locations on Devices and Security activity.
   # Optional: put MAXMIND_ACCOUNT_ID, MAXMIND_LICENSE_KEY and
   # GEOIP_DB_PATH=./data/geoip/GeoLite2-City.mmdb in .env, then
@@ -113,6 +128,7 @@ services:
 volumes:
   identity-db:
   hydra-db:
+  s3:
 
 networks:
   internal:

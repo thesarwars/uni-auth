@@ -3,7 +3,7 @@
 <% if (!it.profile.passwordSetAt) checks.push({ icon: 'lock-20', t: 'No password yet', s: 'Set one so you can sign in without waiting for a code.', href: '/account/password', act: 'Set one' }); %>
 <% if (verified.length < 2) checks.push({ icon: 'mail', t: 'Add a backup email or phone', s: "So you can still get in if you lose access to " + (it.who || 'your address') + '.', href: '/account/contact#add', act: 'Add' }); %>
 <section class="profile" aria-labelledby="title">
-  <span class="avatar-i" aria-hidden="true"><%= it.initials %></span>
+  <%~ include('./_avatar', { photo: it.photo, initials: it.initials }) %>
   <h1 id="title"><%= it.name || 'Your account' %></h1>
   <p><%= it.who %></p>
 <% if (it.apps && it.apps.length) { %>

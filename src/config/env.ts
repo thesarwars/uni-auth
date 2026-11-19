@@ -138,6 +138,24 @@ const Env = z.object({
       .optional(),
   ),
 
+  /**
+   * Profile photos (db/migrations/0015_identity_photo.sql) are kept in this S3 bucket. Unset,
+   * members can't add one. S3_ENDPOINT is for an S3-compatible store (s3mock locally and, until
+   * real S3, on the server; docker-compose files); unset, it is AWS itself. Unset keys use the
+   * SDK's own chain (an instance role on AWS).
+   */
+  S3_PHOTO_BUCKET: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(3).optional()),
+  S3_ENDPOINT: optionalUrl,
+  S3_REGION: z.string().min(1).default('eu-west-2'),
+  S3_ACCESS_KEY_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  S3_SECRET_ACCESS_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** How often replaced and removed photos are deleted from the bucket. */
+  PHOTO_CLEANUP_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .default(10 * 60 * 1000),
+
   /** How long the provider remembers a sign-in: the 90-day ceiling auth_session enforces. */
   REMEMBER_SECONDS: z.coerce
     .number()

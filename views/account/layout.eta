@@ -23,7 +23,7 @@
       <a class="help" href="<%= it.help %>"><img src="<%= asset('icons/help.svg') %>" alt="Help" width="22" height="22"></a>
 <% } %>
       <details class="me">
-        <summary aria-label="Your account: <%= it.name || it.who %>"><span class="avatar-i" aria-hidden="true"><%= it.initials %></span></summary>
+        <summary aria-label="Your account: <%= it.name || it.who %>"><%~ include('./_avatar', { photo: it.photo, initials: it.initials }) %></summary>
         <div class="menu">
           <div class="id">
 <% if (it.name) { %>            <span class="n"><%= it.name %></span>
@@ -75,5 +75,7 @@
 <% } %>
   <script src="<%= asset('password.js') %>" defer></script>
   <script src="<%= asset('webauthn.js') %>" defer></script>
+<% if (it.photos) { %>  <script src="<%= asset('photo.js') %>" defer></script>
+<% } %>
 </body>
 </html>

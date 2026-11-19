@@ -53,6 +53,8 @@ export function browser(userAgent?: string) {
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(form).toString(),
       }),
+    /** A multipart form, as a browser sends a file upload. */
+    upload: (url: string, form: FormData) => request(url, { method: 'POST', body: form }),
     /** Follows redirects from `url` until one lands outside Hydra and this app, or on a page. */
     async follow(url: string): Promise<{ url: string; hop: Hop }> {
       let current = url;

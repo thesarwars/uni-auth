@@ -268,7 +268,12 @@ export function activityView(
               icon: 'mail',
               title: `Primary ${kindOf({ kind: e.detail.primary }).toLowerCase()} changed`,
             }
-          : { icon: 'shield-20', title: 'Name or language changed' };
+          : Array.isArray(e.detail.fields) && e.detail.fields.includes('photo')
+            ? {
+                icon: 'shield-20',
+                title: e.detail.removed ? 'Profile photo removed' : 'Profile photo changed',
+              }
+            : { icon: 'shield-20', title: 'Name or language changed' };
       case 'identity_created':
         return { icon: 'shield-20', title: 'Account created' };
       case 'export_downloaded':

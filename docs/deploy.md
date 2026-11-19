@@ -74,13 +74,14 @@ The `gsn-web` client accepts exactly `${GSN_WEB_ORIGIN}/callback` as its redirec
 
 ## Day to day
 
-| Task                    | Command                                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Update to a new version | `git pull && docker compose up --build -d`                                                                             |
-| Logs                    | `docker compose logs -f login hydra`                                                                                   |
-| Restart the application | `docker compose restart login`                                                                                         |
-| Rotate the signing keys | `docker compose run --rm setup scripts/hydra-keys.sh --rotate` (then docs/key-rotation.md)                             |
-| Back up the databases   | `docker compose exec identity-db pg_dump -U uni_auth_owner identity > identity.sql` (and `hydra-db`, `-U hydra hydra`) |
+| Task                    | Command                                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Update to a new version | `git pull && docker compose up --build -d`                                                                                  |
+| Logs                    | `docker compose logs -f login hydra`                                                                                        |
+| Restart the application | `docker compose restart login`                                                                                              |
+| Rotate the signing keys | `docker compose run --rm setup scripts/hydra-keys.sh --rotate` (then docs/key-rotation.md)                                  |
+| Back up the databases   | `docker compose exec identity-db pg_dump -U uni_auth_owner identity > identity.sql` (and `hydra-db`, `-U hydra hydra`)      |
+| Back up profile photos  | `docker run --rm -v uni-auth_s3:/s3 -v "$PWD":/out alpine tar czf /out/photos.tgz -C /s3 .` (while s3mock stands in for S3) |
 
 ## Choices
 
@@ -92,6 +93,11 @@ The `gsn-web` client accepts exactly `${GSN_WEB_ORIGIN}/callback` as its redirec
   `X-Forwarded-Proto: https` is believed only from private addresses
   (`hydra.prod.yml serve.tls.allow_termination_from`). The ports are bound to 127.0.0.1, so
   only the host's nginx can reach them.
+- **Profile photos** are kept in S3. Until the client's bucket exists, the `s3` service
+  (`adobe/s3mock`, as GSN's api uses) stands in for it, with the files in the `s3` volume.
+  Switching is a `.env` change (`.env.prod.example`, "Profile photos") plus copying the
+  `photos/` objects across. nginx lets only `/account/personal/photo` take a body over 64k
+  (6 MB), so update the host's nginx config from `deploy/nginx/uni-auth.conf` too.
 - **Client addresses.** The login application believes `X-Forwarded-For` only from the
   compose network (`TRUSTED_PROXIES` = `UNI_AUTH_SUBNET`), which is how nginx's connection
   arrives. The per-address sign-in throttle therefore sees the member's own address.
