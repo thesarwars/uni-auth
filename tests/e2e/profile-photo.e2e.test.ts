@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PhotoCleanup } from '../../src/photos/photo-cleanup';
 import { PhotoStore } from '../../src/photos/photo-store';
+import { Limits } from '../../src/limits/limits';
 import { RedisService } from '../../src/redis/redis.service';
 import { startApp } from '../support/app';
 import {
@@ -206,7 +207,9 @@ describe('Profile photo', () => {
   it('is changed at most 20 times an hour', async () => {
     const m = await createMember();
     const b = await accountSignIn(m);
-    await app.get(RedisService).client.set(`uni-auth:photo:${m.identityId}`, '20', 'EX', 3600);
+    await app
+      .get(RedisService)
+      .client.set(app.get(Limits).key('photo', m.identityId), '20', 'EX', 3600);
     const res = await upload(b, await jpeg());
     expect(res.status).toBe(429);
     expect(res.html).toContain('You can change your photo 20 times an hour.');

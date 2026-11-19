@@ -31,11 +31,11 @@ import { Passkeys } from '../passkeys/passkeys.service';
 import { activitiesView, describeDevice, devicesView } from './device';
 import { DataExport } from './data-export';
 import { HydraAdmin } from '../hydra/hydra-admin.service';
-import { RedisService } from '../redis/redis.service';
 import { Upstream, PROVIDERS, type Provider } from '../upstream/upstream.service';
 import { PhotoRepository } from '../photos/photo.repository';
 import { PhotoRefused, Photos } from '../photos/photos';
 import { isUpload } from '../photos/upload';
+import { Limits, tryAgainIn, type BudgetName } from '../limits/limits';
 
 const SESSION_COOKIE = 'ea_account';
 const STATE_COOKIE = 'ea_account_state';
@@ -79,11 +79,44 @@ const DONE: Record<string, string> = {
   photo_removed: 'Your photo is removed.',
 };
 
-/** Downloads of one's data an hour: plenty for a member, few enough to make scraping slow. */
-const DOWNLOADS_PER_HOUR = 5;
-
-/** Photo changes an hour: room to try a few, too few to use the bucket as storage. */
-const PHOTOS_PER_HOUR = 20;
+/**
+ * What a member is told when an action's budget (src/limits/limits.ts) is spent, and where the
+ * page leads back to. Downloads and photos say so on their own pages instead.
+ */
+const TOO_OFTEN: Partial<Record<BudgetName, { says: string; back: [string, string] }>> = {
+  personal: {
+    says: 'You’ve changed your name and language a lot in the last hour.',
+    back: ['/account/personal', 'Personal info'],
+  },
+  contact_add: {
+    says: 'You’ve asked for a lot of codes to new addresses in the last hour.',
+    back: ['/account/contact', 'Email and phone'],
+  },
+  contact_change: {
+    says: 'You’ve changed your email addresses and phone numbers a lot in the last hour.',
+    back: ['/account/contact', 'Email and phone'],
+  },
+  password: {
+    says: 'You’ve changed your password a lot in the last hour.',
+    back: ['/account/security', 'Security & sign-in'],
+  },
+  two_step_setup: {
+    says: 'Too many codes were tried.',
+    back: ['/account/two-step', '2-step verification'],
+  },
+  two_step_change: {
+    says: 'You’ve changed 2-step verification a lot in the last hour.',
+    back: ['/account/two-step', '2-step verification'],
+  },
+  passkey_change: {
+    says: 'You’ve changed your passkeys a lot in the last hour.',
+    back: ['/account/passkeys', 'Passkeys'],
+  },
+  sign_out: {
+    says: 'You’ve signed out devices and apps a lot in the last hour.',
+    back: ['/account/security', 'Security & sign-in'],
+  },
+};
 
 /** What a member gave an app, in plain words, by OpenID Connect scope. Others aren't shown. */
 const SCOPE_WORDS: Record<string, string> = {
@@ -143,11 +176,11 @@ export class AccountController {
     private readonly twoStepStore: TwoStepStore,
     private readonly passkeys: Passkeys,
     private readonly dataExport: DataExport,
-    private readonly redis: RedisService,
     private readonly upstream: Upstream,
     private readonly hydra: HydraAdmin,
     private readonly photos: Photos,
     private readonly photoRecords: PhotoRepository,
+    private readonly limits: Limits,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -356,6 +389,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/devices');
     if (!s) return;
+    if (await this.tooOften(reply, s, 'sign_out')) return;
     const { id } = parse(IdForm, body);
     const ended = await this.db.tx(async (db) => {
       const gone = await this.identities.endDevice(db, s.sub, id, s.sid);
@@ -386,6 +420,7 @@ export class AccountController {
   async signOutOthers(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const s = await this.guard(req, reply, '/account/devices');
     if (!s) return;
+    if (await this.tooOften(reply, s, 'sign_out')) return;
     const ended = await this.db.tx(async (db) => {
       const sids = await this.identities.endOtherDevices(db, s.sub, s.sid);
       if (sids.length > 0) {
@@ -426,6 +461,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/personal');
     if (!s) return;
+    if (await this.tooOften(reply, s, 'personal')) return;
     const form = parse(ProfileForm, body);
     const name = form.display_name.trim().replace(/\s+/g, ' ');
     const locale = LOCALES.find((l) => l.tag === form.locale)?.tag;
@@ -509,12 +545,10 @@ export class AccountController {
       await refuse('Choose a photo under 5 MB.', 413);
       return;
     }
-    const key = `uni-auth:photo:${s.sub}`;
-    const count = await this.redis.client.incr(key);
-    if (count === 1) await this.redis.client.expire(key, 3600);
-    if (count > PHOTOS_PER_HOUR) {
+    const taken = await this.limits.take('photo', s.sub);
+    if (!taken.ok) {
       await refuse(
-        `You can change your photo ${PHOTOS_PER_HOUR} times an hour. Try again later.`,
+        `You can change your photo ${this.limits.limit('photo')} times an hour. Try again ${tryAgainIn(taken.retryAt)}.`,
         429,
       );
       return;
@@ -616,6 +650,7 @@ export class AccountController {
       );
       return;
     }
+    if (await this.tooOften(reply, s, 'contact_add')) return;
     await this.sendAddCode(reply, s, id);
   }
 
@@ -711,6 +746,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/contact', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'contact_change')) return;
     const { id } = parse(IdForm, body);
     const changed = await this.db.tx(async (db) => {
       const done = await this.identities.makePrimary(db, s.sub, id);
@@ -745,6 +781,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/contact', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'contact_change')) return;
     const { id } = parse(IdForm, body);
     let gone: IdentifierRow | null;
     try {
@@ -808,6 +845,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/password', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'password')) return;
     const form = parse(PasswordForm, body);
     const policy = await this.passwords.policyInEffect(this.db.asDb());
     const failed = checkPassword(policy, form.password).filter((r) => !r.met);
@@ -904,6 +942,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/two-step/setup', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'two_step_setup')) return;
     const form = parse(TotpForm, body);
     const sealed = await this.twoStepStore.setup(s.id);
     if (!this.mfa.enabled || !sealed) {
@@ -952,6 +991,7 @@ export class AccountController {
   async newRecoveryCodes(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const s = await this.guard(req, reply, '/account/two-step', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'two_step_change')) return;
     if (!this.mfa.enabled || !(await this.identities.hasTotp(s.sub))) {
       await redirect(reply, '/account/two-step');
       return;
@@ -984,6 +1024,7 @@ export class AccountController {
   async disableTwoStep(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const s = await this.guard(req, reply, '/account/two-step', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'two_step_change')) return;
     const off = await this.db.tx(async (db) => {
       const was = await this.identities.disableTotp(db, s.sub);
       if (was) {
@@ -1045,6 +1086,8 @@ export class AccountController {
     const s = await this.current(req);
     reply.header('cache-control', 'no-store');
     if (!s || !isFresh(s)) return reply.status(401).send({});
+    const taken = await this.limits.take('passkey_options', s.sub);
+    if (!taken.ok) return reply.status(429).send({});
     return reply.send(await this.passkeys.addOptions(passkeyFlow(s), s.sub));
   }
 
@@ -1056,6 +1099,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/passkeys/add', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'passkey_change')) return;
     const form = parse(PasskeyForm, body);
     const made = await this.passkeys.verifyAdd(
       passkeyFlow(s),
@@ -1126,6 +1170,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/passkeys');
     if (!s) return;
+    if (await this.tooOften(reply, s, 'passkey_change')) return;
     const form = parse(RenameForm, body);
     const name = form.name.trim().replace(/\s+/g, ' ');
     if (!name || Array.from(name).length > 60 || name.length > 60) {
@@ -1147,6 +1192,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/passkeys', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'passkey_change')) return;
     const { id } = parse(IdForm, body);
     const name = await this.db.tx(async (db) => {
       const was = await this.identities.removePasskey(db, s.sub, id);
@@ -1324,6 +1370,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/apps');
     if (!s) return;
+    if (await this.tooOften(reply, s, 'sign_out')) return;
     const { id } = parse(AppForm, body);
     const app = (await this.connectedApps(s.sub))?.find((a) => a.key === id);
     if (!app) {
@@ -1354,6 +1401,7 @@ export class AccountController {
   ): Promise<void> {
     const s = await this.guard(req, reply, '/account/apps', { fresh: true });
     if (!s) return;
+    if (await this.tooOften(reply, s, 'sign_out')) return;
     const { provider } = parse(UnlinkForm, body);
     const kind = providerKind(provider);
     const ended = await this.db.tx(async (db) => {
@@ -1423,15 +1471,13 @@ export class AccountController {
   async download(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const s = await this.guard(req, reply, '/account/privacy/download', { fresh: true });
     if (!s) return;
-    const key = `uni-auth:export:${s.sub}`;
-    const count = await this.redis.client.incr(key);
-    if (count === 1) await this.redis.client.expire(key, 3600);
-    if (count > DOWNLOADS_PER_HOUR) {
+    const taken = await this.limits.take('export', s.sub);
+    if (!taken.ok) {
       await this.privacyPage(
         reply,
         s,
         {
-          error: `You can download your data ${DOWNLOADS_PER_HOUR} times an hour. Try again later.`,
+          error: `You can download your data ${this.limits.limit('export')} times an hour. Try again ${tryAgainIn(taken.retryAt)}.`,
         },
         429,
       );
@@ -1795,6 +1841,34 @@ export class AccountController {
       (r) => r.kind === 'email' && r.primary,
     );
     if (to) await this.email.sendNotice(to.value, subject, lines);
+  }
+
+  /**
+   * Takes one of the member's budget for this action. When it's spent, says so on a page of its
+   * own (429) and returns true: the caller stops there.
+   */
+  private async tooOften(
+    reply: FastifyReply,
+    s: AccountSession,
+    name: BudgetName,
+  ): Promise<boolean> {
+    const taken = await this.limits.take(name, s.sub);
+    if (taken.ok) return false;
+    const { says, back } = TOO_OFTEN[name]!;
+    reply.header('retry-after', String(Math.ceil((taken.retryAt.getTime() - Date.now()) / 1000)));
+    await this.render(
+      reply,
+      s,
+      'account/too-often',
+      'Try again later',
+      /^\/account\/(personal|contact)/.test(back[0]) ? 'personal' : 'security',
+      {
+        message: `${says} Try again ${tryAgainIn(taken.retryAt)}.`,
+        back: { href: back[0], label: back[1] },
+      },
+      429,
+    );
+    return true;
   }
 
   private seen(req: FastifyRequest, s: AccountSession) {

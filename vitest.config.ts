@@ -24,6 +24,8 @@ const defaults: Record<string, string> = {
   REDIS_URL: 'redis://127.0.0.1:6380',
   // A fresh namespace per run, so one run's failed attempts never lock out the next.
   THROTTLE_KEY_PREFIX: `uni-auth-test:${Date.now()}:`,
+  // Every request comes from 127.0.0.1; the per-address limits' own tests fill the counter.
+  ADDRESS_LIMIT_SCALE: '1000',
   GOOGLE_CLIENT_ID: 'test-google-client',
   GOOGLE_CLIENT_SECRET: 'test-google-secret',
   GOOGLE_ISSUER: 'http://localhost:4999/google',

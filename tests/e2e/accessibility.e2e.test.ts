@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Outbox } from '../../src/delivery/outbox';
+import { Limits } from '../../src/limits/limits';
+import { RedisService } from '../../src/redis/redis.service';
 import { codeAt, fromBase32, stepAt } from '../../src/two-step/totp';
 import { Authenticator } from '../support/authenticator';
 import { startApp } from '../support/app';
@@ -233,6 +235,19 @@ beforeAll(async () => {
   await a.upload(`${APP}/account/personal/photo`, photoForm(png, 'me.png', 'image/png'));
   keep('account personal info, with photo', await a.get(`${APP}/account/personal`));
   keep('account profile photo, set', await a.get(`${APP}/account/personal/photo`));
+  // A change refused because its budget is spent (part 8).
+  acct = await a.get(`${APP}/account/personal/edit`);
+  await app
+    .get(RedisService)
+    .client.set(app.get(Limits).key('personal', holder.identityId), '30', 'EX', 3600);
+  keep(
+    'account try again later',
+    await a.post(`${APP}/account/personal`, {
+      _csrf: token(),
+      display_name: 'Too often',
+      locale: 'en-GB',
+    }),
+  );
   ({ b, page } = await start());
   page = await post(b, page, { action: 'identify', identifier: holder.email });
   page = await post(b, page, { action: 'password', password: holder.password });
