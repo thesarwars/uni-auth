@@ -726,20 +726,10 @@ input.text[aria-invalid='true']:focus {
 .acct-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
   text-decoration: none;
-  font-size: 20px;
-  line-height: 28px;
 }
-.acct-brand .name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  letter-spacing: -0.4px;
-}
-.acct-brand .area {
-  color: var(--text-secondary);
+.acct-brand img {
+  display: block;
 }
 .acct-tools {
   display: flex;
@@ -1239,9 +1229,6 @@ a.panel-foot:hover {
   }
 }
 @media (max-width: 560px) {
-  .acct-brand .area {
-    display: none;
-  }
   .row {
     padding: 14px 16px;
   }
