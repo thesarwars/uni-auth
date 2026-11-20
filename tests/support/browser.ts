@@ -47,6 +47,8 @@ export function browser(userAgent?: string) {
 
   return {
     get: (url: string) => request(url),
+    /** A cookie's value as the server set it. */
+    cookie: (name: string) => jar.get(name),
     post: (url: string, form: Record<string, string>) =>
       request(url, {
         method: 'POST',

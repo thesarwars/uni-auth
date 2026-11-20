@@ -74,14 +74,17 @@ The `gsn-web` client accepts exactly `${GSN_WEB_ORIGIN}/callback` as its redirec
 
 ## Day to day
 
-| Task                    | Command                                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Update to a new version | `git pull && docker compose up --build -d`                                                                                  |
-| Logs                    | `docker compose logs -f login hydra`                                                                                        |
-| Restart the application | `docker compose restart login`                                                                                              |
-| Rotate the signing keys | `docker compose run --rm setup scripts/hydra-keys.sh --rotate` (then docs/key-rotation.md)                                  |
-| Back up the databases   | `docker compose exec identity-db pg_dump -U uni_auth_owner identity > identity.sql` (and `hydra-db`, `-U hydra hydra`)      |
-| Back up profile photos  | `docker run --rm -v uni-auth_s3:/s3 -v "$PWD":/out alpine tar czf /out/photos.tgz -C /s3 .` (while s3mock stands in for S3) |
+| Task                     | Command                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Update to a new version  | `git pull && docker compose up --build -d`                                                                                                |
+| Logs                     | `docker compose logs -f login hydra`                                                                                                      |
+| Restart the application  | `docker compose restart login`                                                                                                            |
+| Rotate the signing keys  | `docker compose run --rm setup scripts/hydra-keys.sh --rotate` (then docs/key-rotation.md)                                                |
+| Back up the databases    | `docker compose exec identity-db pg_dump -U uni_auth_owner identity > identity.sql` (and `hydra-db`, `-U hydra hydra`)                    |
+| Back up profile photos   | `docker run --rm -v uni-auth_s3:/s3 -v "$PWD":/out alpine tar czf /out/photos.tgz -C /s3 .` (while s3mock stands in for S3)               |
+| Make someone an operator | `docker compose run --rm setup node scripts/operator.mjs grant someone@example.com "support team"` (they need a passkey on their account) |
+| Remove an operator       | `docker compose run --rm setup node scripts/operator.mjs revoke someone@example.com "left the team"`                                      |
+| List the operators       | `docker compose run --rm setup node scripts/operator.mjs list`                                                                            |
 
 ## Choices
 

@@ -1562,3 +1562,23 @@ dialog.confirm .btn.ghost {
   flex-direction: column;
   gap: 8px;
 }
+
+/* Operator console (account-plan.md part 8) */
+.panel-title {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.op-note {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+.op-action + .op-action {
+  padding-top: 20px;
+  border-top: 1px solid var(--border-default);
+}
+.row .text .s.mono {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}

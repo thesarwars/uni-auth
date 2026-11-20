@@ -20,6 +20,7 @@ import {
 import { SessionEnder } from '../sessions/session-ender';
 import { ACCOUNT_CLIENT_ID, AccountOidc, AccountSignInFailed } from './account-oidc';
 import { AccountApps } from './account-apps';
+import { AccountPages, isFresh, SESSION_COOKIE, STATE_COOKIE } from './account-pages';
 import { AccountSessions, type AccountSession } from './account-sessions';
 import { GeoIp } from '../geo/geoip.service';
 import QRCode from 'qrcode';
@@ -37,11 +38,7 @@ import { PhotoRefused, Photos } from '../photos/photos';
 import { isUpload } from '../photos/upload';
 import { Limits, tryAgainIn, type BudgetName } from '../limits/limits';
 
-const SESSION_COOKIE = 'ea_account';
-const STATE_COOKIE = 'ea_account_state';
-
-/** A sensitive change needs a sign-in this recent (account-plan.md AC-D2). */
-export const FRESH_SECONDS = 10 * 60;
+export { FRESH_SECONDS } from './account-pages';
 
 /** How far back Security activity looks (account-plan.md; retention is OQ-AC-5). */
 const ACTIVITY_DAYS = 90;
@@ -181,6 +178,7 @@ export class AccountController {
     private readonly photos: Photos,
     private readonly photoRecords: PhotoRepository,
     private readonly limits: Limits,
+    private readonly pages: AccountPages,
   ) {}
 
   // ---------------------------------------------------------------------------------------
@@ -246,7 +244,7 @@ export class AccountController {
       return;
     }
     const { idToken, claims } = signedIn;
-    const fresh = { sid: claims.sid, idToken, authTime: claims.auth_time };
+    const fresh = { sid: claims.sid, idToken, authTime: claims.auth_time, amr: claims.amr ?? [] };
     let session: AccountSession;
     if (existing && existing.sub === claims.sub) {
       session = await this.sessions.refresh(existing, fresh);
@@ -1589,18 +1587,8 @@ export class AccountController {
   // ---------------------------------------------------------------------------------------
 
   /** The signed-in account session, if its provider session is still live. */
-  private async current(req: FastifyRequest): Promise<AccountSession | null> {
-    const raw = req.cookies[SESSION_COOKIE];
-    const unsigned = raw ? req.unsignCookie(raw) : null;
-    if (!unsigned?.valid || !unsigned.value) return null;
-    const s = await this.sessions.get(unsigned.value);
-    if (!s) return null;
-    // Signed out elsewhere, revoked, or the identity suspended or closed: this ends too.
-    if ((await this.identities.mayRefresh(s.sid)) !== true) {
-      await this.sessions.end(s.id);
-      return null;
-    }
-    return s;
+  private current(req: FastifyRequest): Promise<AccountSession | null> {
+    return this.pages.current(req);
   }
 
   /**
@@ -1625,35 +1613,16 @@ export class AccountController {
     return s;
   }
 
-  private async startSignIn(
+  private startSignIn(
     reply: FastifyReply,
     returnTo: string,
     confirm?: AccountSession,
   ): Promise<void> {
-    const { url, state, verifier, nonce } = this.oidc.start(
-      confirm ? { idToken: confirm.idToken } : undefined,
-    );
-    await this.sessions.hold(state, { verifier, nonce, returnTo });
-    reply.setCookie(STATE_COOKIE, state, {
-      signed: true,
-      httpOnly: true,
-      path: '/account',
-      maxAge: 600,
-      sameSite: 'lax',
-      secure: env.NODE_ENV === 'production',
-    });
-    await redirect(reply, url);
+    return this.pages.startSignIn(reply, returnTo, confirm);
   }
 
   private setSession(reply: FastifyReply, s: AccountSession): void {
-    reply.setCookie(SESSION_COOKIE, s.id, {
-      signed: true,
-      httpOnly: true,
-      path: '/account',
-      maxAge: 12 * 60 * 60,
-      sameSite: 'lax',
-      secure: env.NODE_ENV === 'production',
-    });
+    this.pages.setSession(reply, s);
   }
 
   private async load(
@@ -1799,7 +1768,7 @@ export class AccountController {
     await this.render(reply, s, view, title, nav, data, status);
   }
 
-  private async render(
+  private render(
     reply: FastifyReply,
     s: AccountSession,
     view: string,
@@ -1808,31 +1777,7 @@ export class AccountController {
     data: Record<string, unknown>,
     status = 200,
   ): Promise<void> {
-    const identifiers =
-      (data.identifiers as IdentifierRow[] | undefined) ??
-      (await this.identities.identifiers(s.sub));
-    const profile =
-      (data.profile as Profile | undefined) ?? (await this.identities.profile(s.sub))!;
-    const who =
-      identifiers.find((r) => r.primary && r.kind === 'email') ??
-      identifiers.find((r) => r.primary);
-    await render(
-      reply,
-      view,
-      title,
-      {
-        ...data,
-        nav,
-        who: who?.value ?? '',
-        name: profile.displayName ?? '',
-        initials: initials(profile.displayName, who?.value ?? ''),
-        photo: await this.photos.path(s.sub),
-        photos: this.photos.enabled,
-        help: env.HELP_URL || null,
-        csrfToken: reply.generateCsrf(),
-      },
-      status,
-    );
+    return this.pages.render(reply, s, view, title, nav, data, status);
   }
 
   /** Tells the member at their primary email; they may have none (a phone-only account). */
@@ -1881,8 +1826,6 @@ export class AccountController {
   }
 }
 
-const isFresh = (s: AccountSession): boolean => Date.now() / 1000 - s.authTime <= FRESH_SECONDS;
-
 /** The flow a code from the account centre is bound to: this account session, nothing else. */
 const flowOf = (s: AccountSession): string => `account:${s.id}`;
 
@@ -1911,9 +1854,3 @@ const flash = (done: unknown): string | null =>
   typeof done === 'string' && Object.hasOwn(DONE, done) ? DONE[done]! : null;
 
 /** One or two letters for the avatar: from the name, else the address. */
-function initials(name: string | null, address: string): string {
-  const words = (name ?? '').trim().split(/\s+/).filter(Boolean);
-  if (words.length >= 2) return (words[0]![0]! + words[words.length - 1]![0]!).toUpperCase();
-  if (words.length === 1) return Array.from(words[0]!)[0]!.toUpperCase();
-  return (Array.from(address.replace(/^\+/, ''))[0] ?? '?').toUpperCase();
-}
