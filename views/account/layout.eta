@@ -75,6 +75,7 @@
 <% } %>
   <script src="<%= asset('password.js') %>" defer></script>
   <script src="<%= asset('webauthn.js') %>" defer></script>
+  <script src="<%= asset('menu.js') %>" defer></script>
 <% if (it.photos) { %>  <script src="<%= asset('photo.js') %>" defer></script>
 <% } %>
 </body>

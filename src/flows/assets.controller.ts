@@ -61,9 +61,13 @@ function versioned(files: Map<string, Asset>, name: string): string {
 
 const FILES = load();
 
-/** The screens' scripts: password fields (password.js) and passkeys (webauthn.js). */
+/**
+ * The screens' scripts: password fields (password.js), passkeys (webauthn.js), the photo
+ * preview (photo.js) and the account centre's profile menu (menu.js). A script a template links
+ * must be listed here, or it is never served (tests/e2e/accessibility.e2e.test.ts checks).
+ */
 const SCRIPTS = new Map(
-  ['password.js', 'webauthn.js'].map((name) => {
+  ['password.js', 'webauthn.js', 'photo.js', 'menu.js'].map((name) => {
     const body = readFileSync(join(PUBLIC, name), 'utf8');
     return [name, { body, version: versionOf(body) }] as const;
   }),
@@ -105,7 +109,7 @@ export function clientLogo(product: unknown): string | null {
 }
 
 /**
- * The screens' two scripts (public/password.js, public/webauthn.js) and the files above, from this origin,
+ * The screens' scripts (SCRIPTS) and the files above, from this origin,
  * which is all the Content-Security-Policy allows (script-src 'self'). A request names a key in
  * the map, never a path on disk.
  */

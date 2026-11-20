@@ -12,6 +12,7 @@ import { RedisService } from '../../src/redis/redis.service';
 import { codeAt, fromBase32, stepAt } from '../../src/two-step/totp';
 import { Authenticator } from '../support/authenticator';
 import { startApp } from '../support/app';
+import { chromePath, launchChrome, type Chrome } from '../support/chrome';
 import { APP, HYDRA, authorizeUrl, browser, formFields, pkce, type Hop } from '../support/browser';
 import { closeMembers, createMember, type Member } from '../support/members';
 
@@ -379,6 +380,23 @@ describe('every screen passes axe-core (WCAG 2.2 A and AA)', () => {
     });
   }
 
+  it('every script and stylesheet a screen links is served', async () => {
+    const links = new Set<string>();
+    for (const html of screens.values()) {
+      for (const m of html.matchAll(/<(?:script|link)[^>]+(?:src|href)="(\/assets\/[^"]+)"/g))
+        links.add(m[1]!);
+    }
+    for (const js of ['menu.js', 'photo.js', 'password.js', 'webauthn.js'])
+      expect(
+        [...links].some((l) => l.includes(js)),
+        js,
+      ).toBe(true);
+    const missing: string[] = [];
+    for (const l of links)
+      if ((await fetch(APP + l.replace(/&amp;/g, '&'))).status !== 200) missing.push(l);
+    expect(missing).toEqual([]);
+  });
+
   it('the audit itself catches a broken page', async () => {
     const found = await audit(
       '<!doctype html><html><body><input type="text"><img src="x"></body></html>',
@@ -454,4 +472,265 @@ describe('colour contrast', () => {
       expect(ratio(t[fg]!, t[bg]!)).toBeGreaterThanOrEqual(min);
     });
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// In a real browser (part 8's accessibility pass): what jsdom can't see because it lays nothing
+// out. Each screen kept above is drawn by Chrome at this server's origin, so its stylesheet,
+// fonts and scripts load as they do for a member.
+// ---------------------------------------------------------------------------------------------
+
+const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+describe.skipIf(!chromePath())('in a real browser', () => {
+  let chrome: Chrome;
+
+  // Each screen is served at this server's own address by Chrome itself (the Fetch domain), so
+  // its stylesheet, fonts and scripts come from the server as they do for a member.
+  let current = '';
+  beforeAll(async () => {
+    chrome = await launchChrome();
+    await chrome.send('Page.enable');
+    await chrome.send('Fetch.enable', { patterns: [{ urlPattern: `${APP}/__screen/*` }] });
+    chrome.on('Fetch.requestPaused', (p: { requestId: string }) => {
+      void chrome.send('Fetch.fulfillRequest', {
+        requestId: p.requestId,
+        responseCode: 200,
+        responseHeaders: [{ name: 'content-type', value: 'text/html; charset=utf-8' }],
+        body: Buffer.from(current).toString('base64'),
+      });
+    });
+  }, 60_000);
+  afterAll(async () => {
+    await chrome?.close();
+  });
+
+  let shown = 0;
+  /** Draws `html` at `width` CSS pixels and waits for its stylesheet, fonts and scripts. */
+  async function show(html: string, width: number): Promise<void> {
+    await chrome.send('Emulation.setDeviceMetricsOverride', {
+      width,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: width < 600,
+    });
+    current = html;
+    const loaded = chrome.once('Page.loadEventFired');
+    await chrome.send('Page.navigate', { url: `${APP}/__screen/${++shown}` });
+    await loaded;
+    await chrome.evaluate('document.fonts.ready.then(() => true)');
+    // Without its stylesheet a page would pass trivially, on the browser's own focus ring.
+    const styled = await chrome.evaluate<number>(
+      `[...document.styleSheets].reduce((n, sh) => { try { return n + sh.cssRules.length; } catch { return n; } }, 0)`,
+    );
+    if (/stylesheet/.test(html)) expect(styled, 'stylesheet loaded').toBeGreaterThan(50);
+  }
+
+  async function axeInChrome(): Promise<string[]> {
+    await chrome.evaluate(`window.axe ? true : (eval(${JSON.stringify(axe.source)}), true)`);
+    return chrome.evaluate(
+      `axe.run(document, { runOnly: { type: 'tag', values: ${JSON.stringify(WCAG)} } })
+        .then((r) => r.violations.map((v) => v.id + ': ' + v.nodes.map((n) => n.target.join(' ') + (n.any[0] ? ' (' + n.any[0].message + ')' : '')).join(', ')))`,
+    );
+  }
+
+  /** What sticks out past a 320px-wide window (1.4.10 Reflow), outside anything that scrolls. */
+  const overflow = () =>
+    chrome.evaluate<string[]>(`(() => {
+      const w = document.documentElement.clientWidth;
+      if (document.documentElement.scrollWidth <= w) return [];
+      const scrolls = (el) => { for (let p = el.parentElement; p; p = p.parentElement) {
+        const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') return true; } return false; };
+      return [...document.body.querySelectorAll('*')]
+        .filter((el) => el.getBoundingClientRect().right > w + 1 && !scrolls(el))
+        .slice(0, 5)
+        .map((el) => el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(' ').join('.') : '') + ' right=' + Math.round(el.getBoundingClientRect().right));
+    })()`);
+
+  /**
+   * Text cut off once spacing is widened as 1.4.12 (Text Spacing) allows: what a box with
+   * overflow hidden can no longer show. Ellipsis truncation of long values is by design.
+   */
+  const clippedBySpacing = () =>
+    chrome.evaluate<string[]>(`(() => {
+      const st = document.createElement('style');
+      st.textContent = '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }';
+      document.head.appendChild(st);
+      const out = [];
+      for (const el of document.body.querySelectorAll('*')) {
+        const s = getComputedStyle(el);
+        if (!/hidden|clip/.test(s.overflowX + s.overflowY) || el.closest('.sr')) continue;
+        const box = el.getBoundingClientRect();
+        // Visible text drawn outside the box that clips it: what a reader can no longer see.
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+          if (!t.textContent.trim() || t.parentElement.closest('.sr')) continue;
+          const ps = getComputedStyle(t.parentElement);
+          if (ps.textOverflow === 'ellipsis' || ps.visibility === 'hidden' || ps.display === 'none') continue;
+          const range = document.createRange(); range.selectNodeContents(t);
+          const r = range.getBoundingClientRect();
+          if (r.width === 0) continue;
+          if (r.right > box.right + 1 || r.bottom > box.bottom + 1 || r.left < box.left - 1 || r.top < box.top - 1) {
+            out.push(el.tagName.toLowerCase() + '.' + String(el.className).split(' ').join('.') + ' cuts "' + t.textContent.trim().slice(0, 40) + '"');
+            break;
+          }
+        }
+        if (out.length >= 5) break;
+      }
+      st.remove();
+      return out;
+    })()`);
+
+  /** Fields, buttons and boxes cut off by a container that hides what overflows it. */
+  const cutOff = () =>
+    chrome.evaluate<string[]>(`(() => {
+      const out = [];
+      for (const el of document.body.querySelectorAll('input:not([type=hidden]), button, a, select, textarea, .boxes span, img')) {
+        if (el.closest('.sr, [hidden]')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          const s = getComputedStyle(p);
+          if (!/hidden|clip/.test(s.overflowX)) continue;
+          const b = p.getBoundingClientRect();
+          if (r.right > b.right + 1 || r.left < b.left - 1)
+            out.push(el.tagName.toLowerCase() + '.' + String(el.className).split(' ').join('.') + ' in ' + p.tagName.toLowerCase() + '.' + String(p.className).split(' ').join('.'));
+          break;
+        }
+        if (out.length >= 5) break;
+      }
+      return out;
+    })()`);
+
+  const FOCUSABLE =
+    'a[href],button:not([disabled]),input:not([type=hidden]):not([disabled]),select,textarea,summary,[tabindex]:not([tabindex="-1"])';
+
+  /** Tabs through the page: what gets focus, and whether it then looks any different (2.4.7). */
+  async function tabThrough(): Promise<{
+    reached: string[];
+    unseen: string[];
+    hiddenFocus: string[];
+  }> {
+    const count = await chrome.evaluate<number>(`(() => {
+      document.activeElement && document.activeElement.blur();
+      const look = (el) => { const s = getComputedStyle(el);
+        return [s.outlineStyle, s.outlineWidth, s.outlineColor, s.boxShadow, s.borderColor, s.backgroundColor, s.color, s.textDecorationLine].join('|'); };
+      window.__look = look;
+      window.__base = new Map([...document.querySelectorAll(${JSON.stringify(FOCUSABLE)})].map((el) => [el, look(el)]));
+      return window.__base.size;
+    })()`);
+    const reached: string[] = [];
+    const unseen: string[] = [];
+    const hiddenFocus: string[] = [];
+    for (let i = 0; i < count + 2; i++) {
+      for (const type of ['keyDown', 'keyUp']) {
+        await chrome.send('Input.dispatchKeyEvent', {
+          type,
+          key: 'Tab',
+          code: 'Tab',
+          windowsVirtualKeyCode: 9,
+        });
+      }
+      const at = await chrome.evaluate<{
+        desc: string;
+        changed: boolean;
+        visible: boolean;
+      } | null>(`(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body || !window.__base.has(el)) return el && el !== document.body ? { desc: 'unlisted ' + el.tagName, changed: true, visible: true } : null;
+        const r = el.getBoundingClientRect();
+        const name = (el.getAttribute('aria-label') || el.textContent || el.getAttribute('name') || el.id || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
+        return { desc: el.tagName.toLowerCase() + ' "' + name + '"', changed: window.__look(el) !== window.__base.get(el), visible: r.width > 0 && r.height > 0 };
+      })()`);
+      if (!at) break;
+      if (reached.includes(at.desc) && reached[0] === at.desc) break;
+      reached.push(at.desc);
+      if (!at.changed) unseen.push(at.desc);
+      if (!at.visible) hiddenFocus.push(at.desc);
+    }
+    return { reached, unseen, hiddenFocus };
+  }
+
+  it('the checks themselves catch a broken page', async () => {
+    const page = (body: string) =>
+      `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>t</title><link rel="stylesheet" href="/assets/entity-auth.css"><style>${body}</style></head>` +
+      `<body><main><h1>t</h1><a href="/x">Link</a><button>Go</button><div style="width:600px">wide</div><p style="color:#bbb">pale</p></main></body></html>`;
+    await show(
+      page('*:focus, *:focus-visible { outline: none !important; box-shadow: none !important; }'),
+      1280,
+    );
+    expect((await tabThrough()).unseen).toEqual(['a "Link"', 'button "Go"']);
+    expect((await axeInChrome()).map((v) => v.split(':')[0])).toContain('color-contrast');
+    await show(page(''), 320);
+    expect((await overflow()).length).toBeGreaterThan(0);
+  });
+
+  /** A key pressed as a person would: Enter also types its character, which is what activates. */
+  const key = async (k: string, code: string, vk: number) => {
+    const text = k === 'Enter' ? '\r' : undefined;
+    await chrome.send('Input.dispatchKeyEvent', {
+      type: text ? 'keyDown' : 'rawKeyDown',
+      key: k,
+      code,
+      windowsVirtualKeyCode: vk,
+      text,
+    });
+    await chrome.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: k,
+      code,
+      windowsVirtualKeyCode: vk,
+    });
+  };
+
+  it('the profile menu opens from the keyboard, and Escape or Tab away closes it', async () => {
+    await show(screens.get('account home')!, 1280);
+    const focusSummary = `(() => { document.querySelector('details.me summary').focus(); return document.activeElement.tagName; })()`;
+    expect(await chrome.evaluate(focusSummary)).toBe('SUMMARY');
+    const open = () => chrome.evaluate<boolean>(`document.querySelector('details.me').open`);
+    await key('Enter', 'Enter', 13);
+    expect(await open()).toBe(true);
+    await key('Escape', 'Escape', 27);
+    expect(await open()).toBe(false);
+    expect(await chrome.evaluate(`document.activeElement.tagName`)).toBe('SUMMARY');
+    await key('Enter', 'Enter', 13);
+    await key('Tab', 'Tab', 9); // to Sign out, inside
+    expect(await open()).toBe(true);
+    await key('Tab', 'Tab', 9); // out of the menu
+    expect(await open()).toBe(false);
+  });
+
+  /**
+   * Every screen, as Chrome draws it: axe-core with contrast as rendered; each control reached by
+   * Tab looks different when focused (2.4.7) and is on screen; nothing sticks out sideways at
+   * 320px (1.4.10, a phone, or 1280px zoomed to 400%) or 640px (zoomed to 200%); and no text is
+   * cut off at 320px once spacing is widened as 1.4.12 allows.
+   */
+  it('every screen, drawn in Chrome', async () => {
+    const problems: string[] = [];
+    let checked = 0;
+    for (const [name, html] of screens) {
+      const found: string[] = [];
+      await show(html, 1280);
+      found.push(...(await axeInChrome()).map((v) => `axe ${v}`));
+      const tab = await tabThrough();
+      if (tab.unseen.length) found.push(`focus not visible: ${tab.unseen.join('; ')}`);
+      if (tab.hiddenFocus.length)
+        found.push(`focus on nothing visible: ${tab.hiddenFocus.join('; ')}`);
+      await show(html, 640);
+      const at640 = await overflow();
+      if (at640.length) found.push(`sticks out at 640px: ${at640.join('; ')}`);
+      await show(html, 320);
+      const at320 = await overflow();
+      if (at320.length) found.push(`sticks out at 320px: ${at320.join('; ')}`);
+      const cut = await cutOff();
+      if (cut.length) found.push(`cut off at 320px: ${cut.join('; ')}`);
+      const spaced = await clippedBySpacing();
+      if (spaced.length) found.push(`cut off with wider text spacing: ${spaced.join('; ')}`);
+      if (found.length) problems.push(`${name}:\n  ${found.join('\n  ')}`);
+      checked++;
+    }
+    expect(checked).toBe(screens.size);
+    expect(problems.join('\n')).toBe('');
+  }, 600_000);
 });
