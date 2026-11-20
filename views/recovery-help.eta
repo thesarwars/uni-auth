@@ -8,7 +8,7 @@
 </div>
 <div class="form">
 <% if (it.error) { %>
-  <p class="text-block" role="alert"><%= it.error %></p>
+  <p class="flash bad" role="alert"><%~ include('./_alert-icon') %><span><%= it.error %></span></p>
 <% } %>
 <% if (!it.password) { %>
   <p class="text-block">To ask for 2-step verification to be removed, sign in with your password first. Go back and choose your password instead of a code.</p>

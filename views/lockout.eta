@@ -5,7 +5,7 @@
 <%~ include('./_pill', it) %>
 </div>
 <div class="form">
-  <p class="text-block" role="alert">Password sign-in is paused for this account for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>. You can reset your password now, or sign in with a code.</p>
+  <p class="flash warn" role="alert"><%~ include('./_alert-icon') %><span>Password sign-in is paused for this account for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>. You can reset your password now, or sign in with a code.</span></p>
   <div class="actions">
     <form method="post" action="/login">
 <%~ include('./_hidden', it) %>

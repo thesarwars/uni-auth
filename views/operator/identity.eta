@@ -9,7 +9,7 @@
   <div class="panel-head"><h2 id="h-account">Account</h2></div>
   <ul class="rows">
     <li class="row">
-      <span class="text"><span class="t">Status</span><span class="s"><span class="tag<%= sub.statusLabel.tone === 'ok' ? '' : ' bad' %>"><%= sub.statusLabel.text %></span></span></span>
+      <span class="text"><span class="t">Status</span><span class="s"><span class="tag <%= sub.statusLabel.tone %>"><%= sub.statusLabel.text %></span></span></span>
     </li>
     <li class="row">
       <span class="text"><span class="t">Account ID</span><span class="s mono"><%= sub.id %></span></span>

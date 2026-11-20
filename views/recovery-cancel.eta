@@ -18,12 +18,12 @@
     <button type="submit" form="cancel" class="btn">Cancel the request</button>
   </div>
 <% } else if (it.state === 'cancelled') { %>
-  <p class="text-block">This request was already cancelled. 2-step verification is still on.</p>
+  <p class="flash warn" role="status"><%~ include('./_alert-icon') %><span>This request was already cancelled. 2-step verification is still on.</span></p>
 <% } else if (it.state === 'rejected') { %>
-  <p class="text-block">This request wasn’t approved. 2-step verification is still on.</p>
+  <p class="flash warn" role="status"><%~ include('./_alert-icon') %><span>This request wasn’t approved. 2-step verification is still on.</span></p>
 <% } else if (it.state === 'completed') { %>
-  <p class="text-block">This request has already gone ahead, and 2-step verification was removed. If you didn’t ask for it, sign in, change your password and turn 2-step verification on again.</p>
+  <p class="flash bad" role="alert"><%~ include('./_alert-icon') %><span>This request has already gone ahead, and 2-step verification was removed. If you didn’t ask for it, sign in, change your password and turn 2-step verification on again.</span></p>
 <% } else { %>
-  <p class="text-block">This link isn’t valid. Check you used the whole link from the email.</p>
+  <p class="flash bad" role="alert"><%~ include('./_alert-icon') %><span>This link isn’t valid. Check you used the whole link from the email.</span></p>
 <% } %>
 </div>

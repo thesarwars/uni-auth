@@ -14,7 +14,7 @@
 </div>
 <div class="form">
 <% if (it.locked) { %>
-  <p class="text-block" role="alert">For your security, signing in to this account is paused for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>. Try again after that.</p>
+  <p class="flash warn" role="alert"><%~ include('./_alert-icon') %><span>For your security, signing in to this account is paused for <%= it.minutes === 1 ? '1 minute' : it.minutes + ' minutes' %>. Try again after that.</span></p>
   <div class="actions">
     <a class="btn" href="<%= self %>">Try again</a>
   </div>

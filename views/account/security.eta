@@ -11,7 +11,7 @@
   <ul class="rows">
     <li><a class="row" href="/account/password">
       <span class="tile"><img src="<%= asset('icons/lock-20.svg') %>" alt="" width="20" height="20"></span>
-      <span class="text"><span class="t">Password<% if (!it.profile.passwordSetAt) { %><span class="tag bad">Not set</span><% } %></span><span class="s"><%= it.profile.passwordSetAt ? 'Last changed ' + day(it.profile.passwordSetAt) : 'Set one to sign in without a code' %></span></span>
+      <span class="text"><span class="t">Password<% if (!it.profile.passwordSetAt) { %><span class="tag warn">Not set</span><% } %></span><span class="s"><%= it.profile.passwordSetAt ? 'Last changed ' + day(it.profile.passwordSetAt) : 'Set one to sign in without a code' %></span></span>
       <img class="go" src="<%= asset('icons/chevron-right.svg') %>" alt="" width="20" height="20">
     </a></li>
 <% it.profile.upstreams.forEach(function (u) { var name = u === 'oauth_google' ? 'Google' : 'Apple'; %>
