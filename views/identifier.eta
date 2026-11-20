@@ -11,7 +11,7 @@
 </div>
 <div class="form">
 <% if (it.notice) { %>
-  <p class="notice" role="status"><%= it.notice %></p>
+  <p class="flash warn" role="status"><%~ include('./_alert-icon') %><span><%= it.notice %></span></p>
 <% } %>
   <form id="identify" method="post" action="/login" novalidate>
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">

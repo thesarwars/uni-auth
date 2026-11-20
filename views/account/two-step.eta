@@ -35,7 +35,7 @@
     </li>
     <li class="row">
       <span class="tile"><img src="<%= asset('icons/key.svg') %>" alt="" width="20" height="20"></span>
-      <span class="text"><span class="t">Recovery codes<% if (!codes || codes.left <= 2) { %><span class="tag bad"><%= !codes || codes.left === 0 ? 'None left' : 'Running low' %></span><% } %></span><span class="s"><%= codes ? codes.left + ' of 10 left. Each works once if you can’t use your app.' : 'Make a set to use if you can’t use your app.' %></span></span>
+      <span class="text"><span class="t">Recovery codes<% if (!codes || codes.left <= 2) { %><span class="tag <%= !codes || codes.left === 0 ? 'bad' : 'warn' %>"><%= !codes || codes.left === 0 ? 'None left' : 'Running low' %></span><% } %></span><span class="s"><%= codes ? codes.left + ' of 10 left. Each works once if you can’t use your app.' : 'Make a set to use if you can’t use your app.' %></span></span>
       <form class="do" method="post" action="/account/two-step/codes">
         <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
         <button type="submit" class="btn stroke small">Get new codes</button>

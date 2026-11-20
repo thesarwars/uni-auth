@@ -48,7 +48,7 @@
     </nav>
     <main class="acct-main" aria-labelledby="title">
       <div class="acct-content">
-<% if (it.done) { %>        <p class="flash" role="status"><%= it.done %></p>
+<% if (it.done) { %>        <p class="flash ok" role="status"><%~ include('../_check-icon') %><span><%= it.done %></span></p>
 <% } %>
 <%~ it.body %>
       </div>

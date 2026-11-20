@@ -41,6 +41,9 @@
   --status-error: #b14848;
   --status-ok: #1a7f37;
   --status-error-bg: #fbeeee;
+  --status-ok-bg: #edf7ef;
+  --status-warn: #8a5300;
+  --status-warn-bg: #fdf4e3;
   --tag-neutral: #f5f5f5;
   --font: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -1003,9 +1006,26 @@ input.text[aria-invalid='true']:focus {
   border-radius: 16px;
   font-size: 14px;
 }
+.flash > svg {
+  flex: none;
+}
+/* Something done: "Your details are saved." */
+.flash.ok {
+  color: var(--status-ok);
+  background: var(--status-ok-bg);
+  border-color: var(--status-ok);
+}
+/* Something refused or wrong. */
 .flash.bad {
   color: var(--status-error);
+  background: var(--status-error-bg);
   border-color: var(--status-error);
+}
+/* Nothing wrong, but it can't be done now, or needs a look: "Try again later". */
+.flash.warn {
+  color: var(--status-warn);
+  background: var(--status-warn-bg);
+  border-color: var(--status-warn);
 }
 
 /* A card of rows */
@@ -1163,6 +1183,14 @@ a.panel-foot:hover {
 .tag.bad {
   background: var(--status-error-bg);
   color: var(--status-error);
+}
+.tag.ok {
+  background: var(--status-ok-bg);
+  color: var(--status-ok);
+}
+.tag.warn {
+  background: var(--status-warn-bg);
+  color: var(--status-warn);
 }
 
 /* A card holding a form */

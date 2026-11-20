@@ -4,5 +4,5 @@
   <h1 id="title"><%= it.heading %></h1>
 </div>
 <div class="form">
-  <p class="text-block" role="alert"><%= it.detail %></p>
+  <p class="flash bad" role="alert"><%~ include('./_alert-icon') %><span><%= it.detail %></span></p>
 </div>

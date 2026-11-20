@@ -433,6 +433,10 @@ describe('colour contrast', () => {
     ['status-error', 'bg-surface', 4.5],
     ['status-ok', 'bg-surface', 4.5], // rules met, passwords match
     ['status-error', 'status-error-bg', 4.5], // the "Not set" tag
+    ['status-ok', 'status-ok-bg', 4.5], // a done message, the "Active" tag
+    ['status-warn', 'status-warn-bg', 4.5], // "Try again later", the "Suspended" tag
+    ['status-warn', 'bg-surface', 3], // a warning's edge
+    ['status-ok', 'bg-surface', 3], // a done message's edge
     ['text-primary', 'tag-neutral', 4.5], // the "Verified" tag
     ['text-on-action', 'action-primary', 4.5],
     ['text-on-action', 'action-primary-hover', 4.5],
