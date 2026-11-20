@@ -78,6 +78,8 @@ export interface AuthEvent {
     | 'export_downloaded'
     | 'deletion_requested'
     | 'deletion_cancelled'
+    | 'identity_suspended'
+    | 'identity_reinstated'
     | 'consent_revoked'
     | 'mfa_recovery_requested'
     | 'mfa_recovery_cancelled'
@@ -423,10 +425,12 @@ export class IdentityRepository {
       credential_kind: string | null;
       user_agent: string | null;
       ip: string | null;
+      client_id: string | null;
       detail: Record<string, unknown> | null;
       occurred_at: Date;
     }>(
-      `SELECT kind, outcome, credential_kind, user_agent, host(ip_address) AS ip, detail, occurred_at
+      `SELECT kind, outcome, credential_kind, user_agent, host(ip_address) AS ip, client_id, detail,
+              occurred_at
          FROM auth_event
         WHERE identity_id = $1 AND occurred_at > now() - make_interval(days => $2)
         ORDER BY occurred_at DESC, id DESC
@@ -439,6 +443,7 @@ export class IdentityRepository {
       credentialKind: r.credential_kind,
       userAgent: r.user_agent,
       ip: r.ip,
+      clientId: r.client_id,
       detail: r.detail ?? {},
       occurredAt: r.occurred_at,
     }));

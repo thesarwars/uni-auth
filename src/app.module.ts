@@ -37,6 +37,9 @@ import { SignupStore } from './identity/signup.store';
 import { RedisService } from './redis/redis.service';
 import { Throttle } from './throttle/throttle.service';
 import { Limits } from './limits/limits';
+import { AccountPages } from './account/account-pages';
+import { OperatorController } from './operator/operator.controller';
+import { OperatorRepository } from './operator/operator.repository';
 import { Upstream } from './upstream/upstream.service';
 import { MfaRecoveries } from './recovery/mfa-recoveries';
 import { RecoveryController } from './recovery/recovery.controller';
@@ -63,6 +66,7 @@ import { PhotosController } from './photos/photos.controller';
     PasskeySignInController,
     RecoveryController,
     PhotosController,
+    OperatorController,
   ],
   providers: [
     HydraAdmin,
@@ -76,6 +80,8 @@ import { PhotosController } from './photos/photos.controller';
     RedisService,
     Throttle,
     Limits,
+    AccountPages,
+    OperatorRepository,
     SignIn,
     SignupStore,
     SessionEnder,

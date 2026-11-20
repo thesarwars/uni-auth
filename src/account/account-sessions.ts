@@ -13,6 +13,11 @@ export interface AccountSession {
   idToken: string;
   /** When the member last proved who they are, in seconds: what AC-D2 measures. */
   authTime: number;
+  /**
+   * How they proved it then (RFC 8176): 'pwd', 'otp', 'hwk' or 'swk' for a passkey, 'mfa'.
+   * Missing on a session from before it was kept.
+   */
+  amr?: string[];
   createdAt: number;
 }
 
@@ -63,7 +68,7 @@ export class AccountSessions {
   /** A fresh sign-in on the same session: who and when, after "Confirm it's you". */
   async refresh(
     s: AccountSession,
-    with_: Pick<AccountSession, 'sid' | 'idToken' | 'authTime'>,
+    with_: Pick<AccountSession, 'sid' | 'idToken' | 'authTime' | 'amr'>,
   ): Promise<AccountSession> {
     const next = { ...s, ...with_ };
     await this.save(next);

@@ -1,0 +1,20 @@
+<% layout('../account/layout') %>
+<div class="page-head">
+  <h1 id="title">Operator console</h1>
+</div>
+<section class="panel pad" aria-label="Find an account">
+  <form method="post" action="/account/operator">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <div class="field">
+      <label for="q">Email address, phone number or account ID</label>
+      <input id="q" class="text" name="q" type="text" autocomplete="off" spellcheck="false" maxlength="400" value="<%= it.typed %>"<% if (it.error) { %> aria-invalid="true" aria-describedby="q-error"<% } %>>
+    </div>
+<% if (it.error) { %>
+    <p id="q-error" class="error" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p>
+<% } %>
+    <div class="actions">
+      <button type="submit" class="btn">Find account</button>
+    </div>
+  </form>
+</section>
+<p class="fine">Every search, every account you open and every change you make is logged with your name.</p>

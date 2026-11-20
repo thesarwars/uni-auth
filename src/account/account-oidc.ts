@@ -18,6 +18,7 @@ const IdTokenClaims = z.object({
   nonce: z.string(),
   sid: z.string().min(1),
   auth_time: z.number(),
+  amr: z.array(z.string()).optional(),
 });
 export type IdTokenClaims = z.infer<typeof IdTokenClaims>;
 

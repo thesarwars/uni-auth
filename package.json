@@ -19,6 +19,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:dev-roles": "node scripts/db-dev-roles.mjs",
     "dev:member": "node scripts/dev-member.mjs",
+    "operator": "node scripts/operator.mjs",
     "load:sign-in": "tsx --env-file=.env tests/load/sign-in.load.ts"
   },
   "comments": {

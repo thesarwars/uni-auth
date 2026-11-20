@@ -41,6 +41,8 @@ export const BUDGETS = {
   /** Devices signed out, apps' access removed, Google or Apple unlinked: each calls Hydra. */
   sign_out: { limit: 30, windowSeconds: HOUR, per: 'member' },
   export: { limit: 5, windowSeconds: HOUR, per: 'member' },
+  /** Searches in the operator console: a stolen operator session can't walk the member list. */
+  operator_search: { limit: 100, windowSeconds: HOUR, per: 'member' },
   /** Sign-in, sign-up and reset codes sent from one address, to any addresses. */
   codes: { limit: 30, windowSeconds: HOUR, per: 'address' },
   /** Passkey sign-in challenges and attempts from one address. */

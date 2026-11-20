@@ -41,7 +41,7 @@
   <div class="acct-body">
     <nav class="acct-nav" aria-label="Account">
       <ul>
-<% [['home', '/account', 'Home', 'home'], ['personal', '/account/personal', 'Personal info', 'user'], ['security', '/account/security', 'Security & sign-in', 'lock'], ['apps', '/account/apps', 'Linked apps', 'link'], ['privacy', '/account/privacy', 'Data & privacy', 'shield']].forEach(function (n) { %>
+<% [['home', '/account', 'Home', 'home'], ['personal', '/account/personal', 'Personal info', 'user'], ['security', '/account/security', 'Security & sign-in', 'lock'], ['apps', '/account/apps', 'Linked apps', 'link'], ['privacy', '/account/privacy', 'Data & privacy', 'shield']].concat(it.operator ? [['operator', '/account/operator', 'Operator console', 'search']] : []).forEach(function (n) { %>
         <li><a href="<%= n[1] %>"<% if (it.nav === n[0]) { %> aria-current="page"<% } %>><span class="tile"><img class="off" src="<%= asset('icons/' + (n[3]) + '.svg') %>" alt="" width="18" height="18"><img class="on" src="<%= asset('icons/' + (n[3]) + '-on.svg') %>" alt="" width="18" height="18"></span><%= n[2] %></a></li>
 <% }) %>
       </ul>

@@ -162,6 +162,8 @@ export interface EventRow {
   credentialKind: string | null;
   userAgent: string | null;
   ip: string | null;
+  /** The app it happened in; the operator console shows it. */
+  clientId?: string | null;
   detail: Record<string, unknown>;
   occurredAt: Date;
 }
@@ -211,6 +213,9 @@ export function activityView(
           title: e.userAgent ? `Signed out on ${device.name}` : 'Signed out',
         };
       case 'session_revoked': {
+        if (e.detail.by === 'operator') {
+          return { icon: 'logout', title: 'Signed out everywhere by support' };
+        }
         const n = typeof e.detail.others === 'number' ? e.detail.others : null;
         const name = typeof e.detail.device === 'string' ? e.detail.device : null;
         return {
@@ -290,6 +295,10 @@ export function activityView(
         return { icon: 'delete', title: 'Account deletion requested' };
       case 'deletion_cancelled':
         return { icon: 'shield-20', title: 'Account deletion cancelled by signing in' };
+      case 'identity_suspended':
+        return { icon: 'alert-circle', title: 'Account suspended by support' };
+      case 'identity_reinstated':
+        return { icon: 'shield-20', title: 'Account reinstated by support' };
       case 'consent_revoked':
         return {
           icon: 'link',

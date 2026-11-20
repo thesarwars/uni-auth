@@ -1,0 +1,140 @@
+<% layout('../account/layout') %>
+<% var sub = it.subject; var closed = sub.status === 'closed'; %>
+<div class="page-head">
+  <a class="back" href="/account/operator"><img src="<%= asset('icons/arrow-left.svg') %>" alt="" width="18" height="18">Operator console</a>
+  <h1 id="title"><%= sub.heading %></h1>
+</div>
+<% if (it.error) { %><p class="flash bad" role="alert"><%~ include('../_alert-icon') %><span><%= it.error %></span></p><% } %>
+<section class="panel" aria-labelledby="h-account">
+  <div class="panel-head"><h2 id="h-account">Account</h2></div>
+  <ul class="rows">
+    <li class="row">
+      <span class="text"><span class="t">Status</span><span class="s"><span class="tag<%= sub.statusLabel.tone === 'ok' ? '' : ' bad' %>"><%= sub.statusLabel.text %></span></span></span>
+    </li>
+    <li class="row">
+      <span class="text"><span class="t">Account ID</span><span class="s mono"><%= sub.id %></span></span>
+    </li>
+    <li class="row">
+      <span class="text"><span class="t">Created</span><span class="s"><%= sub.created %></span></span>
+    </li>
+<% if (sub.deletion) { %>
+    <li class="row">
+      <span class="text"><span class="t">Deletion requested</span><span class="s">Deleted on <%= sub.deletion %> unless the member signs in before then</span></span>
+    </li>
+<% } %>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-addresses">
+  <div class="panel-head"><h2 id="h-addresses">Email and phone</h2></div>
+  <ul class="rows">
+<% if (!it.identifiers.length) { %>
+    <li class="row"><span class="text"><span class="s">None.</span></span></li>
+<% } %>
+<% it.identifiers.forEach(function (i) { %>
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/' + (i.kind === 'email' ? 'mail' : 'mobile') + '.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= i.value %><% if (i.primary) { %><span class="tag inverse">Primary</span><% } %><% if (!i.verified) { %><span class="tag">Not confirmed</span><% } %></span><span class="s"><%= i.kind === 'email' ? 'Email address' : 'Phone number' %></span></span>
+    </li>
+<% }) %>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-methods">
+  <div class="panel-head"><h2 id="h-methods">Sign-in methods</h2></div>
+  <ul class="rows">
+    <li class="row"><span class="tile"><img src="<%= asset('icons/lock-20.svg') %>" alt="" width="20" height="20"></span><span class="text"><span class="t">Password</span><span class="s"><%= it.methods.password ? 'Set' : 'Not set' %></span></span></li>
+    <li class="row"><span class="tile"><img src="<%= asset('icons/shield-20.svg') %>" alt="" width="20" height="20"></span><span class="text"><span class="t">2-step verification</span><span class="s"><%= it.methods.twoStep ? 'On' : 'Off' %></span></span></li>
+    <li class="row"><span class="tile"><img src="<%= asset('icons/key.svg') %>" alt="" width="20" height="20"></span><span class="text"><span class="t">Passkeys</span><span class="s"><%= it.methods.passkeys === 0 ? 'None' : it.methods.passkeys === 1 ? '1 passkey' : it.methods.passkeys + ' passkeys' %></span></span></li>
+    <li class="row"><span class="tile"><img src="<%= asset('icons/link.svg') %>" alt="" width="20" height="20"></span><span class="text"><span class="t">Google or Apple</span><span class="s"><%= it.methods.providers.length ? it.methods.providers.join(' and ') + ' linked' : 'Not linked' %></span></span></li>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-devices">
+  <div class="panel-head"><h2 id="h-devices">Signed in now</h2></div>
+  <ul class="rows">
+<% if (!it.devices.length) { %>
+    <li class="row"><span class="text"><span class="s">Not signed in anywhere.</span></span></li>
+<% } %>
+<% it.devices.forEach(function (d) { %>
+    <li class="row">
+      <span class="tile"><img src="<%= asset('icons/' + d.icon + '.svg') %>" alt="" width="20" height="20"></span>
+      <span class="text"><span class="t"><%= d.name %></span><span class="s"><%= d.detail %></span></span>
+    </li>
+<% }) %>
+  </ul>
+</section>
+<% if (!closed && !it.self) { %>
+<section class="panel pad" aria-labelledby="h-act">
+  <h2 id="h-act" class="panel-title">Actions</h2>
+<% if (sub.status === 'active') { %>
+  <form method="post" action="/account/operator/suspend" class="op-action">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="id" value="<%= sub.id %>">
+    <div class="field">
+      <label for="reason-suspend">Suspend: why?</label>
+      <input id="reason-suspend" class="text" name="reason" type="text" maxlength="500" autocomplete="off" value="<%= it.reason %>" aria-describedby="hint-suspend">
+      <p id="hint-suspend" class="hint">The account is signed out everywhere and can’t sign in until it’s reinstated. The member is emailed.</p>
+    </div>
+    <div class="actions"><button type="submit" class="btn danger">Suspend account</button></div>
+  </form>
+<% } else { %>
+  <form method="post" action="/account/operator/reinstate" class="op-action">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="id" value="<%= sub.id %>">
+    <div class="field">
+      <label for="reason-reinstate">Reinstate: why?</label>
+      <input id="reason-reinstate" class="text" name="reason" type="text" maxlength="500" autocomplete="off" value="<%= it.reason %>" aria-describedby="hint-reinstate">
+      <p id="hint-reinstate" class="hint">The account can sign in again. The member is emailed.</p>
+    </div>
+    <div class="actions"><button type="submit" class="btn">Reinstate account</button></div>
+  </form>
+<% } %>
+<% if (sub.status === 'active') { %>
+  <form method="post" action="/account/operator/sign-out" class="op-action">
+    <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+    <input type="hidden" name="id" value="<%= sub.id %>">
+    <div class="field">
+      <label for="reason-sign-out">Sign out everywhere: why?</label>
+      <input id="reason-sign-out" class="text" name="reason" type="text" maxlength="500" autocomplete="off" value="<%= it.reason %>" aria-describedby="hint-sign-out">
+      <p id="hint-sign-out" class="hint">Ends every session on every device and app. The account can sign in again straight away. The member is emailed.</p>
+    </div>
+    <div class="actions"><button type="submit" class="btn stroke">Sign out everywhere</button></div>
+  </form>
+<% } %>
+</section>
+<% } else if (it.self) { %>
+<p class="fine">This is your own account. Changes to it are made by another operator.</p>
+<% } %>
+<section class="panel" aria-labelledby="h-recovery">
+  <div class="panel-head"><h2 id="h-recovery">Requests to remove 2-step verification</h2></div>
+  <ul class="rows">
+<% if (!it.recoveries.length) { %>
+    <li class="row"><span class="text"><span class="s">None.</span></span></li>
+<% } %>
+<% it.recoveries.forEach(function (r) { %>
+    <li class="row"><span class="text"><span class="t">Asked <%= r.requested %></span><span class="s"><%= r.state %></span></span></li>
+<% }) %>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-history">
+  <div class="panel-head"><h2 id="h-history">Changes by operators</h2></div>
+  <ul class="rows">
+<% if (!it.history.length) { %>
+    <li class="row"><span class="text"><span class="s">None.</span></span></li>
+<% } %>
+<% it.history.forEach(function (h) { %>
+    <li class="row"><span class="text"><span class="t"><%= h.what %> by <%= h.by %></span><span class="s"><%= h.when %> · “<%= h.reason %>”</span></span></li>
+<% }) %>
+  </ul>
+</section>
+<section class="panel" aria-labelledby="h-activity">
+  <div class="panel-head"><h2 id="h-activity">Activity, last <%= it.days %> days</h2></div>
+  <ul class="rows">
+<% if (!it.activity.length) { %>
+    <li class="row"><span class="text"><span class="s">Nothing in the last <%= it.days %> days.</span></span></li>
+<% } %>
+<% it.activity.forEach(function (a) { %>
+    <li class="row">
+      <span class="text"><span class="t"><%= a.title %><% if (a.failed) { %><span class="tag bad">Failed</span><% } %></span><span class="s"><time datetime="<%= a.at %>"><%= a.when %></time><% if (a.ip) { %> · <%= a.ip %><% if (a.place) { %> (<%= a.place %>)<% } %><% } %><% if (a.device) { %> · <%= a.device %><% } %><% if (a.client) { %> · <%= a.client %><% } %></span></span>
+    </li>
+<% }) %>
+  </ul>
+</section>

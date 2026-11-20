@@ -1,0 +1,17 @@
+<% layout('../account/layout') %>
+<div class="page-head">
+  <h1 id="title">Confirm with a passkey</h1>
+</div>
+<section class="panel pad" aria-labelledby="title">
+<% if (!it.hasPasskey) { %>
+  <p class="op-note">The operator console needs a passkey. Add one to your account, then come back here.</p>
+  <div class="actions">
+    <a class="btn" href="/account/passkeys/add">Add a passkey</a>
+  </div>
+<% } else { %>
+  <p class="op-note"><%= it.again ? 'Changing an account needs a passkey sign-in in the last 10 minutes.' : 'The operator console needs you to sign in with your passkey, not a password or a code.' %></p>
+  <div class="actions">
+    <a class="btn" href="<%= it.confirmUrl %>">Continue with a passkey</a>
+  </div>
+<% } %>
+</section>

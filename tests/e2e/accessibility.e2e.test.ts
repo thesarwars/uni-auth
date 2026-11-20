@@ -1,6 +1,7 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import axe from 'axe-core';
 import { JSDOM } from 'jsdom';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -192,13 +193,14 @@ beforeAll(async () => {
   keep('account passkeys, none', await a.get(`${APP}/account/passkeys`));
   keep('account add passkey', (acct = (await a.follow(`${APP}/account/passkeys/add`)).hop));
   const options = JSON.parse((await a.get(`${APP}/account/passkeys/options`)).html);
+  const holderKey = new Authenticator();
   keep(
     'account add passkey, refused',
     await a.post(`${APP}/account/passkeys/add`, { _csrf: token(), credential: '{}' }),
   );
   await a.post(`${APP}/account/passkeys/add`, {
     _csrf: token(),
-    credential: new Authenticator().create(options),
+    credential: holderKey.create(options),
   });
   keep('account passkeys', (acct = (await a.follow(`${APP}/account/passkeys`)).hop));
   const passkeyId = /name="id" value="([^"]+)"/.exec(acct.html)![1]!;
@@ -246,6 +248,43 @@ beforeAll(async () => {
       _csrf: token(),
       display_name: 'Too often',
       locale: 'en-GB',
+    }),
+  );
+  // The operator console (part 8): its passkey step, search, and an account's page.
+  execFileSync('node', ['scripts/operator.mjs', 'grant', holder.email, 'accessibility test']);
+  acct = keep('operator confirm with a passkey', await a.get(`${APP}/account/operator`));
+  const confirmHref = /href="(\/account\/operator\/confirm\?[^"]+)"/.exec(acct.html)![1]!;
+  const login = (await a.follow(`${APP}${confirmHref.replace(/&amp;/g, '&')}`)).hop;
+  const loginChallenge = /name="login_challenge" value="([^"]+)"/.exec(login.html)![1]!;
+  const getOptions = JSON.parse(
+    (
+      await a.get(
+        `${APP}/login/passkey/options?login_challenge=${encodeURIComponent(loginChallenge)}`,
+      )
+    ).html,
+  );
+  const signedIn = await a.post(`${APP}/login/passkey`, {
+    _csrf: /name="_csrf" value="([^"]+)"/.exec(login.html)![1]!,
+    login_challenge: loginChallenge,
+    credential: holderKey.get(getOptions),
+  });
+  acct = keep('operator console', (await a.follow(signedIn.location!)).hop);
+  expect(acct.html).toContain('Find account');
+  keep(
+    'operator console, not found',
+    await a.post(`${APP}/account/operator`, { _csrf: token(), q: 'nobody@example.com' }),
+  );
+  acct = keep(
+    'operator account page',
+    await a.get(`${APP}/account/operator/identity?id=${member.identityId}`),
+  );
+  expect(acct.html).toContain('Suspend account');
+  keep(
+    'operator account page, refused',
+    await a.post(`${APP}/account/operator/suspend`, {
+      _csrf: token(),
+      id: member.identityId,
+      reason: ' ',
     }),
   );
   ({ b, page } = await start());
