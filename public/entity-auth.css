@@ -427,7 +427,10 @@ input.text[aria-invalid='true']:focus {
   display: flex;
 }
 .boxes span {
+  /* 48px each, narrower when six don't fit (a 320px screen). */
   width: 48px;
+  flex: 0 1 auto;
+  min-width: 0;
   height: 56px;
   display: flex;
   align-items: center;
@@ -475,8 +478,9 @@ input.text[aria-invalid='true']:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 44px;
-  padding: 0 16px;
+  /* At least 44px; a long label on a narrow screen, or with wider text spacing, wraps (1.4.12). */
+  min-height: 44px;
+  padding: 9px 16px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: var(--action-primary);
@@ -484,8 +488,8 @@ input.text[aria-invalid='true']:focus {
   font-size: 16px;
   line-height: 24px;
   font-weight: 500;
+  text-align: center;
   text-decoration: none;
-  white-space: nowrap;
   cursor: pointer;
 }
 .btn:hover {
@@ -1118,6 +1122,10 @@ a.row:hover {
   line-height: 20px;
   font-weight: 500;
 }
+.row .text .t,
+.row .text .s {
+  overflow-wrap: anywhere;
+}
 .row .text .s {
   font-size: 13px;
   line-height: 20px;
@@ -1406,6 +1414,9 @@ input.file::file-selector-button {
 }
 .setup-steps > form {
   margin: 0;
+  /* No wider than the column, so the code boxes shrink to fit a narrow screen. */
+  max-width: 100%;
+  min-width: 0;
 }
 .key {
   max-width: 100%;
@@ -1461,6 +1472,7 @@ input.file::file-selector-button {
 @media (max-width: 600px) {
   .setup {
     flex-direction: column;
+    align-items: stretch;
     gap: 24px;
   }
   .codes {
@@ -1490,6 +1502,10 @@ input.file::file-selector-button {
   display: flex;
   align-items: flex-start;
   gap: 16px;
+}
+.passkey-hero > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .passkey-hero h2 {
   margin: 0 0 6px;
